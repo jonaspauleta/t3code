@@ -14,6 +14,7 @@ import {
   stripDiffSearchParams,
 } from "../diffRouteSearch";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useUnsavedChangesGuard } from "~/hooks/useUnsavedChangesGuard";
 import { selectEnvironmentState, selectThreadByRef, useStore } from "../store";
 import { createProjectSelectorByRef, createThreadSelectorByRef } from "../storeSelectors";
 import { resolveThreadRouteRef, buildThreadRouteParams } from "../threadRoutes";
@@ -176,6 +177,7 @@ function ChatThreadRouteView() {
         worktreePath: serverThread?.worktreePath ?? null,
       })
     : null;
+  useUnsavedChangesGuard(workspaceCwd);
   const workspaceActiveTab = useMemo<WorkspaceTabId>(() => {
     const parsed = parseWorkspaceRouteSearch({ tab: search.tab }).tab;
     if (parsed) return parsed;

@@ -76,12 +76,21 @@ export function WorkspacePanel({
   const handleClose = useCallback(
     (tab: WorkspaceTabId) => {
       if (tab.kind === "changes") return; // Changes is not closable
+      if (tab.kind === "file") {
+        const isDirty = dirtyPaths.has(tab.relativePath);
+        if (isDirty) {
+          const confirmed = window.confirm(
+            `Unsaved changes in ${tab.relativePath}. Discard and close?`,
+          );
+          if (!confirmed) return;
+        }
+      }
       closeTab(cwd, tab);
       if (tabsEqual(tab, activeTab)) {
         onSelectTab(CHANGES_TAB);
       }
     },
-    [activeTab, closeTab, cwd, onSelectTab],
+    [activeTab, closeTab, cwd, dirtyPaths, onSelectTab],
   );
 
   return (
