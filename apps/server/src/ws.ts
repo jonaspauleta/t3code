@@ -13,6 +13,7 @@ import {
   ORCHESTRATION_WS_METHODS,
   ProjectListDirectoryError,
   ProjectReadFileError,
+  ProjectSubscribeFileError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
   OrchestrationReplayEventsError,
@@ -668,6 +669,16 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         observeRpcStream(WS_METHODS.subscribeGitStatus, gitStatusBroadcaster.streamStatus(input), {
           "rpc.aggregate": "git",
         }),
+      [WS_METHODS.subscribeProjectFile]: (_input) =>
+        observeRpcStream(
+          WS_METHODS.subscribeProjectFile,
+          Stream.fail(
+            new ProjectSubscribeFileError({
+              message: "subscribeProjectFile is not yet implemented",
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
       [WS_METHODS.gitRefreshStatus]: (input) =>
         observeRpcEffect(
           WS_METHODS.gitRefreshStatus,
