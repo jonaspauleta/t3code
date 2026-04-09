@@ -669,12 +669,24 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         observeRpcStream(WS_METHODS.subscribeGitStatus, gitStatusBroadcaster.streamStatus(input), {
           "rpc.aggregate": "git",
         }),
-      [WS_METHODS.subscribeProjectFile]: (_input) =>
+      [WS_METHODS.subscribeProjectFile]: (input) =>
         observeRpcStream(
           WS_METHODS.subscribeProjectFile,
-          Stream.fail(
-            new ProjectSubscribeFileError({
-              message: "subscribeProjectFile is not yet implemented",
+          workspaceFileSystem.subscribeFile(input).pipe(
+            Stream.mapError((cause) => {
+              if (Schema.is(ProjectSubscribeFileError)(cause)) {
+                return cause;
+              }
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectSubscribeFileError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectSubscribeFileError({
+                message: "Failed to subscribe to workspace file",
+                cause,
+              });
             }),
           ),
           { "rpc.aggregate": "workspace" },
