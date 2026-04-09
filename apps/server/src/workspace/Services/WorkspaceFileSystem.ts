@@ -9,7 +9,13 @@
 import { Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
-import type { ProjectWriteFileInput, ProjectWriteFileResult } from "@t3tools/contracts";
+import type {
+  ProjectReadFileInput,
+  ProjectReadFileResult,
+  ProjectWriteFileInput,
+  ProjectWriteFileResult,
+} from "@t3tools/contracts";
+import { ProjectReadFileError } from "@t3tools/contracts";
 import { WorkspacePathOutsideRootError } from "./WorkspacePaths.ts";
 
 export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceFileSystemError>()(
@@ -39,6 +45,17 @@ export interface WorkspaceFileSystemShape {
     ProjectWriteFileResult,
     WorkspaceFileSystemError | WorkspacePathOutsideRootError
   >;
+
+  /**
+   * Read a file relative to the workspace root.
+   *
+   * Returns a tagged result: `text` (under the 5MB limit), `binary`
+   * (non-UTF-8/16/32 content detected), or `tooLarge` (above the 5MB limit).
+   * Errors are reserved for real IO failures and path escape.
+   */
+  readonly readFile: (
+    input: ProjectReadFileInput,
+  ) => Effect.Effect<ProjectReadFileResult, ProjectReadFileError | WorkspacePathOutsideRootError>;
 }
 
 /**
