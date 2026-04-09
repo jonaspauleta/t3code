@@ -1,9 +1,13 @@
 import type {
   EnvironmentId,
+  ProjectFileEvent,
   ProjectListDirectoryResult,
   ProjectReadFileResult,
+  ProjectWriteFileInput,
+  ProjectWriteFileResult,
 } from "@t3tools/contracts";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { ensureEnvironmentApi } from "~/environmentApi";
 
@@ -76,5 +80,59 @@ export function workspaceListDirectoryQueryOptions(input: {
     enabled: (input.enabled ?? true) && input.environmentId !== null && input.cwd !== null,
     staleTime: input.staleTime ?? LIST_DIRECTORY_STALE_TIME_MS,
     placeholderData: (previous) => previous ?? EMPTY_LIST_DIRECTORY_RESULT,
+  });
+}
+
+/**
+ * Subscribes to live filesystem events for a single workspace file. Calls
+ * `onEvent` with every event (snapshot, changed, deleted). The subscription
+ * is active as long as the component is mounted AND the cwd + relativePath
+ * are non-null.
+ */
+export function useFileSubscription(
+  environmentId: EnvironmentId | null,
+  cwd: string | null,
+  relativePath: string | null,
+  onEvent: (event: ProjectFileEvent) => void,
+): void {
+  useEffect(() => {
+    if (!environmentId || !cwd || !relativePath) return;
+    const api = ensureEnvironmentApi(environmentId);
+    const unsubscribe = api.projects.onFile({ cwd, relativePath }, onEvent, {
+      onResubscribe: () => {
+        // On reconnect, onFile resubscribes automatically and the server
+        // will emit a fresh `snapshot` event that the callback handles.
+      },
+    });
+    return unsubscribe;
+  }, [environmentId, cwd, relativePath, onEvent]);
+}
+
+/**
+ * Mutation hook that wraps `projects.writeFile`. On success, invalidates
+ * the `readFile` query for the same path and the git status query so the
+ * tree decorations and the diff panel stay in sync.
+ */
+export function useSaveFile(environmentId: EnvironmentId | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cwd: string;
+      relativePath: string;
+      contents: string;
+    }): Promise<ProjectWriteFileResult> => {
+      if (!environmentId) {
+        throw new Error("Workspace file save is unavailable.");
+      }
+      const api = ensureEnvironmentApi(environmentId);
+      return api.projects.writeFile(input as ProjectWriteFileInput);
+    },
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.readFile(environmentId, variables.cwd, variables.relativePath),
+      });
+      // Invalidate git status so the DiffPanel refreshes.
+      queryClient.invalidateQueries({ queryKey: ["git", "status"] });
+    },
   });
 }
