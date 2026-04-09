@@ -19,12 +19,14 @@ import type {
   GitCreateBranchResult,
 } from "./git";
 import type {
+  ProjectFileEvent,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectSubscribeFileInput,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
@@ -191,6 +193,11 @@ export interface EnvironmentApi {
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
+    onFile: (
+      input: ProjectSubscribeFileInput,
+      callback: (event: ProjectFileEvent) => void,
+      options?: { onResubscribe?: () => void },
+    ) => () => void;
   };
   git: {
     listBranches: (input: GitListBranchesInput) => Promise<GitListBranchesResult>;
