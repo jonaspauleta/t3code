@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Option, Path, PlatformError, Stream } from "effect";
 
 import {
   PROJECT_READ_FILE_MAX_BYTES,
+  type ProjectFileEvent,
   ProjectReadFileError,
   type ProjectReadFileResult,
+  ProjectSubscribeFileError,
 } from "@t3tools/contracts";
 
 import {
@@ -79,11 +81,141 @@ function decodeText(buffer: Buffer): string {
   return buffer.toString("latin1");
 }
 
+interface FileSnapshot {
+  readonly sha256: string;
+  readonly size: number;
+}
+
+function isNotFoundError(cause: PlatformError.PlatformError): boolean {
+  return cause.reason._tag === "NotFound";
+}
+
+/**
+ * Snapshot the sha256 + size of a file at `absolutePath`.
+ *
+ * Returns `null` when the file is missing (so callers can emit a "deleted"
+ * event instead of an error). Wraps other IO failures into
+ * `ProjectSubscribeFileError`.
+ */
+function snapshotFile(
+  fileSystem: FileSystem.FileSystem,
+  absolutePath: string,
+): Effect.Effect<FileSnapshot | null, ProjectSubscribeFileError> {
+  return Effect.gen(function* () {
+    const stat = yield* fileSystem.stat(absolutePath);
+    const bytes = yield* fileSystem.readFile(absolutePath);
+    const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return {
+      sha256: createHash("sha256").update(buffer).digest("hex"),
+      size: Number(stat.size),
+    } satisfies FileSnapshot;
+  }).pipe(
+    Effect.catch((cause) =>
+      isNotFoundError(cause)
+        ? Effect.succeed(null)
+        : Effect.fail(
+            new ProjectSubscribeFileError({
+              message: `Failed to snapshot workspace file: ${cause.message}`,
+              cause,
+            }),
+          ),
+    ),
+  );
+}
+
 export const makeWorkspaceFileSystem = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const workspacePaths = yield* WorkspacePaths;
   const workspaceEntries = yield* WorkspaceEntries;
+
+  // Per-subscription file watcher.
+  //
+  // Each `subscribeFile` call opens its own `fileSystem.watch` stream on the
+  // parent directory and filters for events affecting the target basename.
+  //
+  // Design note: the plan originally called for a shared per-directory watcher
+  // with refcounting (§11 R2 mitigation) to bound Linux inotify usage. That
+  // optimization is deferred — see the implementation report for rationale.
+  // The short version: Jonas runs macOS (FSEvents, no inotify ceiling), and
+  // our attempts to multiplex via `PubSub` + a long-lived `Effect.forkIn`
+  // fiber surfaced a lifecycle bug where downstream subscribers never saw
+  // published events in our Effect 4.0 beta version. A naive per-subscription
+  // watch is acceptable for L2 and we can revisit sharing in a follow-up.
+  const subscribeFile: WorkspaceFileSystemShape["subscribeFile"] = (input) =>
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+        const directory = path.dirname(target.absolutePath);
+        const targetBasename = path.basename(target.absolutePath);
+
+        // Initial snapshot: compute and emit immediately so clients always
+        // have a baseline to reconcile against (including after a WS
+        // reconnect that restarts the stream).
+        const initial = yield* snapshotFile(fileSystem, target.absolutePath);
+        const initialEvent: ProjectFileEvent = initial
+          ? { _tag: "snapshot", sha256: initial.sha256, size: initial.size }
+          : { _tag: "deleted" };
+
+        // We cannot trust `event._tag` from the raw watcher because the
+        // Node `fs.watch` wrapper in `@effect/platform-node-shared` reports
+        // `rename` events (the most common kind emitted when editors save
+        // atomically) as `Remove` whenever its internal stat probe fails.
+        // Instead, re-stat on every event: if the file exists now, it's
+        // `changed`; if not, it's `deleted`.
+        //
+        // We dedupe by sha256 (or the deleted flag) relative to the last
+        // event we emitted. This filters out:
+        //   1. Bursts of fs.watch events from a single logical save that
+        //      all resolve to the same file contents.
+        //   2. Phantom events fired at watcher startup (e.g. macOS FSEvents
+        //      catching up to recent activity on the watched directory);
+        //      they re-stat to the baseline content and get dropped.
+        const state = { lastSha256: initial?.sha256 ?? null, lastDeleted: initial === null };
+        const changes = fileSystem.watch(directory).pipe(
+          Stream.filter((event) => path.basename(event.path) === targetBasename),
+          Stream.mapEffect(
+            (_event): Effect.Effect<Option.Option<ProjectFileEvent>, ProjectSubscribeFileError> =>
+              snapshotFile(fileSystem, target.absolutePath).pipe(
+                Effect.map((snapshot) => {
+                  if (snapshot === null) {
+                    if (state.lastDeleted) return Option.none();
+                    state.lastDeleted = true;
+                    state.lastSha256 = null;
+                    return Option.some({ _tag: "deleted" } satisfies ProjectFileEvent);
+                  }
+                  if (!state.lastDeleted && snapshot.sha256 === state.lastSha256) {
+                    return Option.none<ProjectFileEvent>();
+                  }
+                  state.lastDeleted = false;
+                  state.lastSha256 = snapshot.sha256;
+                  return Option.some({
+                    _tag: "changed",
+                    sha256: snapshot.sha256,
+                    size: snapshot.size,
+                  } satisfies ProjectFileEvent);
+                }),
+              ),
+          ),
+          // Drop events where the dedupe returned None.
+          Stream.filter((event): event is Option.Some<ProjectFileEvent> => Option.isSome(event)),
+          Stream.map((event) => event.value),
+          Stream.catchCause((cause) =>
+            Stream.fail(
+              new ProjectSubscribeFileError({
+                message: `Workspace file watcher failed: ${String(cause)}`,
+                cause,
+              }),
+            ),
+          ),
+        );
+
+        return Stream.concat(Stream.succeed(initialEvent), changes);
+      }),
+    );
 
   const writeFile: WorkspaceFileSystemShape["writeFile"] = Effect.fn(
     "WorkspaceFileSystem.writeFile",
@@ -180,7 +312,7 @@ export const makeWorkspaceFileSystem = Effect.gen(function* () {
       return result;
     },
   );
-  return { writeFile, readFile } satisfies WorkspaceFileSystemShape;
+  return { writeFile, readFile, subscribeFile } satisfies WorkspaceFileSystemShape;
 });
 
 export const WorkspaceFileSystemLive = Layer.effect(WorkspaceFileSystem, makeWorkspaceFileSystem);

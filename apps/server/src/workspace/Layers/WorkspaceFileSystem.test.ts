@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, describe, expect } from "@effect/vitest";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Path, Stream } from "effect";
 
 import { PROJECT_READ_FILE_MAX_BYTES } from "@t3tools/contracts";
 
@@ -53,7 +53,11 @@ const writeTextFile = Effect.fn("writeTextFile")(function* (
   yield* fileSystem.writeFileString(absolutePath, contents).pipe(Effect.orDie);
 });
 
-it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
+// `excludeTestServices: true` keeps the real clock so our filesystem
+// watch tests (which rely on real 300ms delays to schedule external
+// mutations) fire events in real time rather than blocking on a frozen
+// `TestClock`.
+it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (it) => {
   describe("writeFile", () => {
     it.effect("writes files relative to the workspace root", () =>
       Effect.gen(function* () {
@@ -253,6 +257,115 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
         expect(error.message).toContain(
           "Workspace file path must be relative to the project root: ../escape.md",
         );
+      }),
+    );
+  });
+
+  describe("subscribeFile", () => {
+    it.effect("emits a snapshot event immediately on subscribe", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const contents = "hello\n";
+        yield* writeTextFile(cwd, "src/hello.txt", contents);
+
+        // Take the first event from the stream with a timeout.
+        const events = yield* workspaceFileSystem
+          .subscribeFile({ cwd, relativePath: "src/hello.txt" })
+          .pipe(Stream.take(1), Stream.runCollect, Effect.timeout("2 seconds"));
+
+        expect(events).toHaveLength(1);
+        const first = events[0]!;
+        expect(first._tag).toBe("snapshot");
+        if (first._tag !== "snapshot") throw new Error("unreachable");
+        expect(first.size).toBe(Buffer.byteLength(contents, "utf8"));
+        expect(first.sha256).toBe(createHash("sha256").update(contents).digest("hex"));
+      }),
+    );
+
+    it.effect("emits a changed event when the file is written", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "a.txt", "original");
+
+        // Schedule the modification to happen once the subscription is
+        // established and the snapshot has been delivered.
+        yield* writeTextFile(cwd, "a.txt", "modified").pipe(
+          Effect.delay("300 millis"),
+          Effect.forkChild,
+        );
+
+        const events = yield* workspaceFileSystem
+          .subscribeFile({ cwd, relativePath: "a.txt" })
+          .pipe(Stream.take(2), Stream.runCollect, Effect.timeout("3 seconds"));
+
+        expect(events).toHaveLength(2);
+        expect(events[0]?._tag).toBe("snapshot");
+        expect(events[1]?._tag).toBe("changed");
+      }),
+    );
+
+    it.effect("emits a deleted event when the file is unlinked", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "gone.txt", "bye");
+
+        // Schedule the unlink to happen after the subscription is
+        // established and the snapshot has been delivered.
+        yield* fileSystem
+          .remove(path.join(cwd, "gone.txt"))
+          .pipe(Effect.orDie, Effect.delay("300 millis"), Effect.forkChild);
+
+        const events = yield* workspaceFileSystem
+          .subscribeFile({ cwd, relativePath: "gone.txt" })
+          .pipe(Stream.take(2), Stream.runCollect, Effect.timeout("3 seconds"));
+
+        expect(events).toHaveLength(2);
+        expect(events[0]?._tag).toBe("snapshot");
+        expect(events[1]?._tag).toBe("deleted");
+      }),
+    );
+
+    it.effect("multiple subscribers to files in the same directory share one watcher", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/a.txt", "a");
+        yield* writeTextFile(cwd, "src/b.txt", "b");
+
+        // This test doesn't directly inspect the watcher refcount map
+        // (which is internal state), but it verifies that two parallel
+        // subscriptions to files in the same directory both receive
+        // events independently. If the implementation accidentally
+        // cross-wired them, `a` events would end up in `b`'s stream or
+        // vice versa.
+        yield* Effect.all(
+          [writeTextFile(cwd, "src/a.txt", "a2"), writeTextFile(cwd, "src/b.txt", "b2")],
+          { discard: true },
+        ).pipe(Effect.delay("300 millis"), Effect.forkChild);
+
+        const [aEvents, bEvents] = yield* Effect.all(
+          [
+            workspaceFileSystem
+              .subscribeFile({ cwd, relativePath: "src/a.txt" })
+              .pipe(Stream.take(2), Stream.runCollect),
+            workspaceFileSystem
+              .subscribeFile({ cwd, relativePath: "src/b.txt" })
+              .pipe(Stream.take(2), Stream.runCollect),
+          ],
+          { concurrency: "unbounded" },
+        ).pipe(Effect.timeout("3 seconds"));
+
+        expect(aEvents).toHaveLength(2);
+        expect(aEvents[0]?._tag).toBe("snapshot");
+        expect(aEvents[1]?._tag).toBe("changed");
+        expect(bEvents).toHaveLength(2);
+        expect(bEvents[0]?._tag).toBe("snapshot");
+        expect(bEvents[1]?._tag).toBe("changed");
       }),
     );
   });

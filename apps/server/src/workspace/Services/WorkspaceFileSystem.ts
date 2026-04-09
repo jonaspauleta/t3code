@@ -7,15 +7,17 @@
  * @module WorkspaceFileSystem
  */
 import { Schema, ServiceMap } from "effect";
-import type { Effect } from "effect";
+import type { Effect, Stream } from "effect";
 
 import type {
+  ProjectFileEvent,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectSubscribeFileInput,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "@t3tools/contracts";
-import { ProjectReadFileError } from "@t3tools/contracts";
+import { ProjectReadFileError, ProjectSubscribeFileError } from "@t3tools/contracts";
 import { WorkspacePathOutsideRootError } from "./WorkspacePaths.ts";
 
 export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceFileSystemError>()(
@@ -56,6 +58,24 @@ export interface WorkspaceFileSystemShape {
   readonly readFile: (
     input: ProjectReadFileInput,
   ) => Effect.Effect<ProjectReadFileResult, ProjectReadFileError | WorkspacePathOutsideRootError>;
+
+  /**
+   * Subscribe to filesystem events for a single file, relative to the
+   * workspace root.
+   *
+   * Emits a `snapshot` event immediately on subscribe (with the current
+   * sha256 + size) so clients always have a baseline. Emits `changed` on
+   * any debounced write. Emits `deleted` on unlink. On stream restart
+   * after a WebSocket reconnect, emits a fresh `snapshot` so clients can
+   * reconcile state.
+   *
+   * Internally uses a shared per-directory watcher (refcounted) so many
+   * subscriptions for files in the same directory cost exactly one
+   * `fs.watch` handle — this bounds Linux inotify watch usage.
+   */
+  readonly subscribeFile: (
+    input: ProjectSubscribeFileInput,
+  ) => Stream.Stream<ProjectFileEvent, ProjectSubscribeFileError | WorkspacePathOutsideRootError>;
 }
 
 /**
