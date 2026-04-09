@@ -125,5 +125,22 @@ export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
     );
   }
 
-  return <FileViewer relativePath={relativePath} contents={data.contents} />;
+  // Phase 6 stub: FileViewer now accepts edit-mode props. Phase 7 rewrites
+  // this whole component to wire them into the zustand store. Until then
+  // we pass safe defaults (read-only, no wrap, no-op listeners) so the
+  // existing L1 behavior is preserved.
+  return (
+    <FileViewer
+      relativePath={relativePath}
+      contents={data.contents}
+      isEditMode={false}
+      wordWrap={false}
+      onContentChange={() => {
+        /* no-op until Phase 7 */
+      }}
+      onCursorChange={() => {
+        /* no-op until Phase 7 */
+      }}
+    />
+  );
 }

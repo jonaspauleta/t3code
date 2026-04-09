@@ -26,9 +26,20 @@ import { resolveLanguage } from "./resolveLanguage";
 interface FileViewerProps {
   readonly relativePath: string;
   readonly contents: string;
+  readonly isEditMode: boolean;
+  readonly wordWrap: boolean;
+  readonly onContentChange: (next: string) => void;
+  readonly onCursorChange: (cursor: { line: number; column: number } | null) => void;
 }
 
-export function FileViewer({ relativePath, contents }: FileViewerProps) {
+export function FileViewer({
+  relativePath,
+  contents,
+  isEditMode,
+  wordWrap,
+  onContentChange,
+  onCursorChange,
+}: FileViewerProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [languageExtension, setLanguageExtension] = useState<Extension | null>(null);
@@ -58,8 +69,23 @@ export function FileViewer({ relativePath, contents }: FileViewerProps) {
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       search({ top: true }),
       keymap.of(defaultKeymap),
-      EditorState.readOnly.of(true),
-      EditorView.editable.of(false),
+      ...(isEditMode
+        ? []
+        : [EditorState.readOnly.of(true), EditorView.editable.of(false)]),
+      ...(wordWrap ? [EditorView.lineWrapping] : []),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          onContentChange(update.state.doc.toString());
+        }
+        if (update.selectionSet) {
+          const head = update.state.selection.main.head;
+          const line = update.state.doc.lineAt(head);
+          onCursorChange({
+            line: line.number,
+            column: head - line.from + 1,
+          });
+        }
+      }),
       EditorView.theme({
         "&": {
           height: "100%",
@@ -125,7 +151,7 @@ export function FileViewer({ relativePath, contents }: FileViewerProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [contents, languageExtension]);
+  }, [contents, languageExtension, isEditMode, wordWrap, onContentChange, onCursorChange]);
 
   return <div ref={hostRef} className="h-full min-h-0 w-full" />;
 }
