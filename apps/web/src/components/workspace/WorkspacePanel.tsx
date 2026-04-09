@@ -28,6 +28,10 @@ const FILES_TAB: WorkspaceTabId = { kind: "files" };
 // every render and trigger "Maximum update depth exceeded" in React.
 const EMPTY_OPEN_TABS: ReadonlyArray<WorkspaceTabId> = [];
 
+// Stable empty set reference for the same reason — see dirtyPathKey
+// selector below for the full stable-key pattern.
+const EMPTY_DIRTY_PATHS: ReadonlySet<string> = new Set();
+
 function tabsEqual(a: WorkspaceTabId, b: WorkspaceTabId): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "file" && b.kind === "file") {
@@ -44,6 +48,25 @@ export function WorkspacePanel({
 }: WorkspacePanelProps) {
   const openTabs = useWorkspaceStore((state) => state.byCwd[cwd]?.openTabs ?? EMPTY_OPEN_TABS);
   const closeTab = useWorkspaceStore((state) => state.closeTab);
+
+  // Stable-key selector for the dirty-paths set — see
+  // commit dbc7d597 for the original L1 infinite-loop fix. We select a
+  // primitive string (sorted, newline-joined) so zustand can compare it
+  // with `Object.is`, then derive the Set once per string change.
+  const dirtyPathKey = useWorkspaceStore((state) => {
+    const cwdState = state.byCwd[cwd];
+    if (!cwdState) return "";
+    const parts: string[] = [];
+    for (const [relativePath, buffer] of Object.entries(cwdState.fileBuffers)) {
+      if (buffer.editorContents !== null) parts.push(relativePath);
+    }
+    return parts.toSorted().join("\n");
+  });
+
+  const dirtyPaths = useMemo(
+    () => (dirtyPathKey ? new Set(dirtyPathKey.split("\n")) : EMPTY_DIRTY_PATHS),
+    [dirtyPathKey],
+  );
 
   const fullTabs = useMemo<ReadonlyArray<WorkspaceTabId>>(
     () => [CHANGES_TAB, FILES_TAB, ...openTabs],
@@ -66,6 +89,7 @@ export function WorkspacePanel({
       <WorkspacePanelTabs
         tabs={fullTabs}
         activeTab={activeTab}
+        dirtyPaths={dirtyPaths}
         onSelect={onSelectTab}
         onClose={handleClose}
       />

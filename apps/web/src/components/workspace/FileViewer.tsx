@@ -69,9 +69,7 @@ export function FileViewer({
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       search({ top: true }),
       keymap.of(defaultKeymap),
-      ...(isEditMode
-        ? []
-        : [EditorState.readOnly.of(true), EditorView.editable.of(false)]),
+      ...(isEditMode ? [] : [EditorState.readOnly.of(true), EditorView.editable.of(false)]),
       ...(wordWrap ? [EditorView.lineWrapping] : []),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {

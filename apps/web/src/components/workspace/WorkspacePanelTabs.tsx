@@ -7,6 +7,7 @@ import type { WorkspaceTabId } from "~/workspace/workspaceStore";
 interface WorkspacePanelTabsProps {
   readonly tabs: ReadonlyArray<WorkspaceTabId>;
   readonly activeTab: WorkspaceTabId;
+  readonly dirtyPaths: ReadonlySet<string>;
   readonly onSelect: (tab: WorkspaceTabId) => void;
   readonly onClose: (tab: WorkspaceTabId) => void;
 }
@@ -34,6 +35,7 @@ function tabsEqual(a: WorkspaceTabId, b: WorkspaceTabId): boolean {
 export function WorkspacePanelTabs({
   tabs,
   activeTab,
+  dirtyPaths,
   onSelect,
   onClose,
 }: WorkspacePanelTabsProps) {
@@ -45,6 +47,7 @@ export function WorkspacePanelTabs({
       {tabs.map((tab) => {
         const isActive = tabsEqual(tab, activeTab);
         const canClose = tab.kind !== "changes";
+        const isDirty = tab.kind === "file" && dirtyPaths.has(tab.relativePath);
         return (
           <button
             key={tabKey(tab)}
@@ -59,6 +62,12 @@ export function WorkspacePanelTabs({
             onClick={() => onSelect(tab)}
             title={tab.kind === "file" ? tab.relativePath : undefined}
           >
+            {isDirty ? (
+              <span
+                aria-hidden
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+              />
+            ) : null}
             <span className="max-w-[12rem] truncate">{tabLabel(tab)}</span>
             {canClose ? (
               <span
