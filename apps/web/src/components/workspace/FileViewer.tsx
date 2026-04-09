@@ -1,64 +1,27 @@
 import { defaultKeymap } from "@codemirror/commands";
 import {
   bracketMatching,
+  defaultHighlightStyle,
   foldGutter,
-  HighlightStyle,
   indentOnInput,
   syntaxHighlighting,
 } from "@codemirror/language";
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
-import { tags as t } from "@lezer/highlight";
 import { useEffect, useRef, useState } from "react";
 
 import { resolveLanguage } from "./resolveLanguage";
 
-// Dark-theme syntax colors. Hand-rolled so we don't ship an extra theme
-// package; the palette roughly follows Material Darker. If the user is on
-// a light theme the colors are still legible, just not perfectly tuned.
-const darkHighlightStyle = HighlightStyle.define([
-  { tag: t.keyword, color: "#c792ea" },
-  {
-    tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName],
-    color: "#eeffff",
-  },
-  { tag: [t.function(t.variableName), t.labelName], color: "#82aaff" },
-  {
-    tag: [t.color, t.constant(t.name), t.standard(t.name)],
-    color: "#ffcb6b",
-  },
-  { tag: [t.definition(t.name), t.separator], color: "#eeffff" },
-  {
-    tag: [
-      t.typeName,
-      t.className,
-      t.number,
-      t.changed,
-      t.annotation,
-      t.modifier,
-      t.self,
-      t.namespace,
-    ],
-    color: "#f78c6c",
-  },
-  {
-    tag: [t.operator, t.operatorKeyword, t.url, t.escape, t.regexp, t.link, t.special(t.string)],
-    color: "#89ddff",
-  },
-  { tag: [t.meta, t.comment], color: "#546e7a", fontStyle: "italic" },
-  { tag: t.strong, fontWeight: "bold" },
-  { tag: t.emphasis, fontStyle: "italic" },
-  { tag: t.strikethrough, textDecoration: "line-through" },
-  { tag: t.link, color: "#80cbc4", textDecoration: "underline" },
-  { tag: t.heading, fontWeight: "bold", color: "#82aaff" },
-  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#f78c6c" },
-  {
-    tag: [t.processingInstruction, t.string, t.inserted],
-    color: "#c3e88d",
-  },
-  { tag: t.invalid, color: "#f07178" },
-]);
+// Chrome colors (background, gutters, selection, etc.) come from t3code's
+// CSS vars via the EditorView.theme below, so they auto-adapt to the
+// current light/dark theme. Syntax colors use CodeMirror's
+// `defaultHighlightStyle`, which is legible on both light and dark
+// backgrounds — not as pretty as a dedicated dark palette, but avoids the
+// previous Material-Darker override that rendered several tags in
+// near-white and was invisible on light backgrounds. A proper
+// theme-aware HighlightStyle (switching palettes on `prefers-color-scheme`
+// or a t3code theme context) is future work.
 
 interface FileViewerProps {
   readonly relativePath: string;
@@ -92,7 +55,7 @@ export function FileViewer({ relativePath, contents }: FileViewerProps) {
       bracketMatching(),
       highlightActiveLine(),
       highlightSelectionMatches(),
-      syntaxHighlighting(darkHighlightStyle, { fallback: true }),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       search({ top: true }),
       keymap.of(defaultKeymap),
       EditorState.readOnly.of(true),

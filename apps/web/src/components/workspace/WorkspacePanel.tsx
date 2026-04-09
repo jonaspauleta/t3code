@@ -79,7 +79,12 @@ export function WorkspacePanel({
             </DiffWorkerPoolProvider>
           </Suspense>
         ) : activeTab.kind === "files" ? (
-          <FilesTreeTab environmentId={environmentId} cwd={cwd} activeTab={activeTab} />
+          <FilesTreeTab
+            environmentId={environmentId}
+            cwd={cwd}
+            activeTab={activeTab}
+            onSelectTab={onSelectTab}
+          />
         ) : (
           <FileTab environmentId={environmentId} cwd={cwd} relativePath={activeTab.relativePath} />
         )}

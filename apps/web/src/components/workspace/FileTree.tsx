@@ -13,6 +13,7 @@ interface FileTreeProps {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly activeTab: WorkspaceTabId | null;
+  readonly onSelectTab: (tab: WorkspaceTabId) => void;
 }
 
 const ROW_HEIGHT = 22;
@@ -44,7 +45,7 @@ function useDirectoryListings(
   return { rootQuery, subtreeQueries };
 }
 
-export function FileTree({ environmentId, cwd, activeTab }: FileTreeProps) {
+export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTreeProps) {
   const expandedDirectoriesList = useWorkspaceStore(
     (state) => state.byCwd[cwd]?.expandedDirectories ?? EMPTY_EXPANDED_DIRECTORIES,
   );
@@ -100,8 +101,9 @@ export function FileTree({ environmentId, cwd, activeTab }: FileTreeProps) {
         return;
       }
       openFile(cwd, row.entry.path);
+      onSelectTab({ kind: "file", relativePath: row.entry.path });
     },
-    [cwd, openFile, toggleDirectory],
+    [cwd, onSelectTab, openFile, toggleDirectory],
   );
 
   if (rootQuery.isLoading) {
