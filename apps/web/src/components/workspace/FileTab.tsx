@@ -38,6 +38,16 @@ export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
   useEffect(() => {
     if (!query.data) return;
     const data = query.data;
+    // Layer 2 fields default to empty — Phase 7 will wire them into the
+    // FileTab UI and carry forward any in-progress edit state.
+    const emptyLayer2 = {
+      isEditMode: false,
+      editorContents: null,
+      cursor: null,
+      diskSha256: null,
+      diskSize: null,
+      hasExternalChange: false,
+    } as const;
     if (data._tag === "text") {
       setFileBuffer(cwd, relativePath, {
         server: {
@@ -46,14 +56,17 @@ export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
           sha256: data.sha256,
           size: data.size,
         },
+        ...emptyLayer2,
       });
     } else if (data._tag === "binary") {
       setFileBuffer(cwd, relativePath, {
         server: { kind: "binary", size: data.size },
+        ...emptyLayer2,
       });
     } else {
       setFileBuffer(cwd, relativePath, {
         server: { kind: "tooLarge", size: data.size, limit: data.limit },
+        ...emptyLayer2,
       });
     }
   }, [cwd, query.data, relativePath, setFileBuffer]);
@@ -62,6 +75,12 @@ export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
     if (!query.error) return;
     setFileBuffer(cwd, relativePath, {
       server: { kind: "error", message: query.error.message },
+      isEditMode: false,
+      editorContents: null,
+      cursor: null,
+      diskSha256: null,
+      diskSize: null,
+      hasExternalChange: false,
     });
   }, [cwd, query.error, relativePath, setFileBuffer]);
 

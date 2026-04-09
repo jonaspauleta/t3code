@@ -20,13 +20,23 @@ export type FileBufferState =
 
 export interface FileBuffer {
   readonly server: FileBufferState;
-  // Layer 2 will add: editorContents, isEditMode, diskSha256, hasExternalChange, cursor
+
+  // Layer 2: editor state. Null means "no edit activity yet".
+  readonly isEditMode: boolean;
+  readonly editorContents: string | null; // when !== null, reflects user edits
+  readonly cursor: { readonly line: number; readonly column: number } | null;
+
+  // Layer 2: disk-change tracking from subscribeFile.
+  readonly diskSha256: string | null;
+  readonly diskSize: number | null;
+  readonly hasExternalChange: boolean;
 }
 
 export interface CwdWorkspaceState {
   readonly openTabs: ReadonlyArray<WorkspaceTabId>;
   readonly fileBuffers: { readonly [relativePath: string]: FileBuffer };
   readonly expandedDirectories: ReadonlyArray<string>;
+  readonly wordWrap: boolean; // default false
 }
 
 interface WorkspaceState {
@@ -38,15 +48,41 @@ interface WorkspaceActions {
   closeTab(cwd: string, tabId: WorkspaceTabId): void;
   setFileBuffer(cwd: string, relativePath: string, buffer: FileBuffer): void;
   toggleDirectory(cwd: string, relativePath: string): void;
+
+  // Layer 2
+  toggleEditMode(cwd: string, relativePath: string): void;
+  setEditorContents(cwd: string, relativePath: string, contents: string): void;
+  setCursor(
+    cwd: string,
+    relativePath: string,
+    cursor: { line: number; column: number } | null,
+  ): void;
+  markDiskSnapshot(cwd: string, relativePath: string, diskSha256: string, diskSize: number): void;
+  resolveExternalChange(cwd: string, relativePath: string, choice: "keepMine" | "reload"): void;
+  clearDirty(cwd: string, relativePath: string): void;
+  setWordWrap(cwd: string, wordWrap: boolean): void;
 }
 
 type WorkspaceStore = WorkspaceState & WorkspaceActions;
+
+const EMPTY_FILE_BUFFER: FileBuffer = {
+  server: { kind: "loading" },
+  isEditMode: false,
+  editorContents: null,
+  cursor: null,
+  diskSha256: null,
+  diskSize: null,
+  hasExternalChange: false,
+};
 
 const EMPTY_CWD_STATE: CwdWorkspaceState = {
   openTabs: [],
   fileBuffers: {},
   expandedDirectories: [],
+  wordWrap: false,
 };
+
+const EDIT_PERSIST_MAX_BYTES = 1 * 1024 * 1024;
 
 function tabsEqual(a: WorkspaceTabId, b: WorkspaceTabId): boolean {
   if (a.kind !== b.kind) return false;
@@ -61,6 +97,27 @@ function getOrInit(
   cwd: string,
 ): CwdWorkspaceState {
   return byCwd[cwd] ?? EMPTY_CWD_STATE;
+}
+
+function updateBuffer(
+  state: WorkspaceState,
+  cwd: string,
+  relativePath: string,
+  updater: (buffer: FileBuffer) => FileBuffer,
+): WorkspaceState {
+  const existing = getOrInit(state.byCwd, cwd);
+  const current = existing.fileBuffers[relativePath] ?? EMPTY_FILE_BUFFER;
+  const next = updater(current);
+  if (next === current) return state;
+  return {
+    byCwd: {
+      ...state.byCwd,
+      [cwd]: {
+        ...existing,
+        fileBuffers: { ...existing.fileBuffers, [relativePath]: next },
+      },
+    },
+  };
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -142,22 +199,116 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             },
           };
         }),
+
+      toggleEditMode: (cwd, relativePath) =>
+        set((state) =>
+          updateBuffer(state, cwd, relativePath, (buffer) => ({
+            ...buffer,
+            isEditMode: !buffer.isEditMode,
+          })),
+        ),
+
+      setEditorContents: (cwd, relativePath, contents) =>
+        set((state) =>
+          updateBuffer(state, cwd, relativePath, (buffer) => {
+            // Dirty = editorContents differs from server contents
+            const serverContents = buffer.server.kind === "text" ? buffer.server.contents : null;
+            const normalized = contents === serverContents ? null : contents;
+            return { ...buffer, editorContents: normalized };
+          }),
+        ),
+
+      setCursor: (cwd, relativePath, cursor) =>
+        set((state) => updateBuffer(state, cwd, relativePath, (buffer) => ({ ...buffer, cursor }))),
+
+      markDiskSnapshot: (cwd, relativePath, diskSha256, diskSize) =>
+        set((state) =>
+          updateBuffer(state, cwd, relativePath, (buffer) => {
+            const isDirty = buffer.editorContents !== null;
+            // Silent refresh for clean buffers with a mismatching hash; conflict
+            // for dirty buffers with a mismatching hash.
+            const serverSha = buffer.server.kind === "text" ? buffer.server.sha256 : null;
+            const diskDiffers = diskSha256 !== serverSha;
+            const hasExternalChange = isDirty && diskDiffers;
+            return { ...buffer, diskSha256, diskSize, hasExternalChange };
+          }),
+        ),
+
+      resolveExternalChange: (cwd, relativePath, choice) =>
+        set((state) =>
+          updateBuffer(state, cwd, relativePath, (buffer) => {
+            if (choice === "keepMine") {
+              return { ...buffer, hasExternalChange: false };
+            }
+            // "reload": drop dirty buffer and pretend it was never dirty.
+            // The next read-file fetch will replace `buffer.server` with
+            // fresh contents; React Query invalidation is the caller's job.
+            return {
+              ...buffer,
+              editorContents: null,
+              hasExternalChange: false,
+            };
+          }),
+        ),
+
+      clearDirty: (cwd, relativePath) =>
+        set((state) =>
+          updateBuffer(state, cwd, relativePath, (buffer) => ({
+            ...buffer,
+            editorContents: null,
+            hasExternalChange: false,
+          })),
+        ),
+
+      setWordWrap: (cwd, wordWrap) =>
+        set((state) => {
+          const existing = getOrInit(state.byCwd, cwd);
+          if (existing.wordWrap === wordWrap) return state;
+          return {
+            byCwd: {
+              ...state.byCwd,
+              [cwd]: { ...existing, wordWrap },
+            },
+          };
+        }),
     }),
     {
       name: "chat_workspace_state",
-      // Only persist structural state — file contents are refetched on demand.
-      partialize: (state) => ({
-        byCwd: Object.fromEntries(
-          Object.entries(state.byCwd).map(([cwd, cwdState]) => [
-            cwd,
-            {
-              openTabs: cwdState.openTabs,
-              fileBuffers: {},
-              expandedDirectories: cwdState.expandedDirectories,
-            },
-          ]),
-        ),
-      }),
+      // Persist structural state + dirty editor buffers up to a cap.
+      // Heavy server-side contents are intentionally stripped; they'll be
+      // refetched on rehydration and reconciled by the next subscribe event.
+      partialize: (state) =>
+        ({
+          byCwd: Object.fromEntries(
+            Object.entries(state.byCwd).map(([cwd, cwdState]) => [
+              cwd,
+              {
+                openTabs: cwdState.openTabs,
+                fileBuffers: Object.fromEntries(
+                  Object.entries(cwdState.fileBuffers)
+                    .filter(
+                      ([, buffer]) =>
+                        buffer.editorContents !== null &&
+                        buffer.editorContents.length <= EDIT_PERSIST_MAX_BYTES,
+                    )
+                    .map(([relativePath, buffer]) => [
+                      relativePath,
+                      {
+                        ...buffer,
+                        // Don't persist stale server content — it'll be refetched.
+                        server: { kind: "loading" as const },
+                        hasExternalChange: false, // reconciled on next subscribe
+                        diskSha256: null,
+                        diskSize: null,
+                      },
+                    ]),
+                ),
+                expandedDirectories: cwdState.expandedDirectories,
+                wordWrap: cwdState.wordWrap,
+              },
+            ]),
+          ),
+        }) as { byCwd: Record<string, CwdWorkspaceState> },
     },
   ),
 );
