@@ -140,16 +140,16 @@ export const ProjectReadFileInput = Schema.Struct({
 export const ProjectReadFileResult = Schema.Union([
   Schema.TaggedStruct("text", {
     contents: Schema.String,
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
     sha256: Schema.String,
   }),
   Schema.TaggedStruct("binary", {
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
     mime: Schema.optional(Schema.String),
   }),
   Schema.TaggedStruct("tooLarge", {
-    size: Schema.NonNegativeInt,
-    limit: Schema.NonNegativeInt,
+    size: NonNegativeInt,
+    limit: NonNegativeInt,
   }),
 ]);
 
@@ -189,13 +189,14 @@ export const ProjectSubscribeFileInput = Schema.Struct({
 });
 
 export const ProjectFileEvent = Schema.Union([
-  Schema.TaggedStruct("snapshot", { // emitted on initial subscribe and on reconnect
+  Schema.TaggedStruct("snapshot", {
+    // emitted on initial subscribe and on reconnect
     sha256: Schema.String,
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
   }),
   Schema.TaggedStruct("changed", {
     sha256: Schema.String,
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
   }),
   Schema.TaggedStruct("deleted", {}),
 ]);
@@ -234,7 +235,9 @@ export class ProjectCreateDirectoryError extends Schema.TaggedErrorClass<Project
 export const ProjectRenameEntryInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
-  nextRelativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+  nextRelativePath: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH),
+  ),
 });
 export const ProjectRenameEntryResult = Schema.Struct({
   previousRelativePath: TrimmedNonEmptyString,
@@ -289,7 +292,10 @@ export interface WorkspaceFileSystemShape {
   // Existing
   readonly writeFile: (
     input: ProjectWriteFileInput,
-  ) => Effect.Effect<ProjectWriteFileResult, WorkspaceFileSystemError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectWriteFileResult,
+    WorkspaceFileSystemError | WorkspacePathOutsideRootError
+  >;
 
   // L1
   readonly readFile: (
@@ -304,19 +310,31 @@ export interface WorkspaceFileSystemShape {
   // L4
   readonly createFile: (
     input: ProjectCreateFileInput,
-  ) => Effect.Effect<ProjectCreateFileResult, ProjectCreateFileError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectCreateFileResult,
+    ProjectCreateFileError | WorkspacePathOutsideRootError
+  >;
 
   readonly createDirectory: (
     input: ProjectCreateDirectoryInput,
-  ) => Effect.Effect<ProjectCreateDirectoryResult, ProjectCreateDirectoryError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectCreateDirectoryResult,
+    ProjectCreateDirectoryError | WorkspacePathOutsideRootError
+  >;
 
   readonly renameEntry: (
     input: ProjectRenameEntryInput,
-  ) => Effect.Effect<ProjectRenameEntryResult, ProjectRenameEntryError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectRenameEntryResult,
+    ProjectRenameEntryError | WorkspacePathOutsideRootError
+  >;
 
   readonly deleteEntry: (
     input: ProjectDeleteEntryInput,
-  ) => Effect.Effect<ProjectDeleteEntryResult, ProjectDeleteEntryError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectDeleteEntryResult,
+    ProjectDeleteEntryError | WorkspacePathOutsideRootError
+  >;
 }
 ```
 
@@ -336,11 +354,15 @@ export interface WorkspaceFileSystemShape {
 export interface WorkspaceTreeShape {
   readonly listDirectory: (
     input: ProjectListDirectoryInput,
-  ) => Effect.Effect<ProjectListDirectoryResult, ProjectListDirectoryError | WorkspacePathOutsideRootError>;
+  ) => Effect.Effect<
+    ProjectListDirectoryResult,
+    ProjectListDirectoryError | WorkspacePathOutsideRootError
+  >;
 }
 ```
 
 Implementation:
+
 - Resolves the directory via `WorkspacePaths`.
 - `fs.readdir` with `withFileTypes: true` for one directory level.
 - Filters against `.git/` and any `.gitignore` rules using the **same mechanism used by `WorkspaceEntries`** (to be verified during L1 — if `WorkspaceEntries` uses a shared helper, extract it to `packages/shared/src/gitignore.ts` with an explicit subpath export; if it uses an inlined helper, copy the pattern into `WorkspaceTree` and file a follow-up to extract).
@@ -441,15 +463,12 @@ type WorkspaceStore = {
 
 ```typescript
 export type WorkspaceRouteSearch = {
-  tab?:
-    | { kind: "changes" }
-    | { kind: "files" }
-    | { kind: "file"; relativePath: string };
+  tab?: { kind: "changes" } | { kind: "files" } | { kind: "file"; relativePath: string };
 };
 
-export function parseWorkspaceRouteSearch(
-  search: Record<string, unknown>,
-): WorkspaceRouteSearch { /* ... */ }
+export function parseWorkspaceRouteSearch(search: Record<string, unknown>): WorkspaceRouteSearch {
+  /* ... */
+}
 ```
 
 The route file combines this parser with the existing `parseDiffRouteSearch`:
@@ -522,20 +541,38 @@ export function useDeleteEntry() { /* ... */ }
 export async function resolveLanguage(relativePath: string): Promise<LanguageSupport | null> {
   const ext = relativePath.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
   switch (ext) {
-    case "ts": case "tsx": case "js": case "jsx": case "mjs": case "cjs":
-      return (await import("@codemirror/lang-javascript")).javascript({ typescript: ext === "ts" || ext === "tsx", jsx: ext === "tsx" || ext === "jsx" });
-    case "py":       return (await import("@codemirror/lang-python")).python();
-    case "md": case "markdown":
+    case "ts":
+    case "tsx":
+    case "js":
+    case "jsx":
+    case "mjs":
+    case "cjs":
+      return (await import("@codemirror/lang-javascript")).javascript({
+        typescript: ext === "ts" || ext === "tsx",
+        jsx: ext === "tsx" || ext === "jsx",
+      });
+    case "py":
+      return (await import("@codemirror/lang-python")).python();
+    case "md":
+    case "markdown":
       return (await import("@codemirror/lang-markdown")).markdown();
-    case "json":     return (await import("@codemirror/lang-json")).json();
-    case "html":     return (await import("@codemirror/lang-html")).html();
-    case "css":      return (await import("@codemirror/lang-css")).css();
-    case "yml": case "yaml":
+    case "json":
+      return (await import("@codemirror/lang-json")).json();
+    case "html":
+      return (await import("@codemirror/lang-html")).html();
+    case "css":
+      return (await import("@codemirror/lang-css")).css();
+    case "yml":
+    case "yaml":
       return (await import("@codemirror/lang-yaml")).yaml();
-    case "sql":      return (await import("@codemirror/lang-sql")).sql();
-    case "rs":       return (await import("@codemirror/lang-rust")).rust();
-    case "go":       return (await import("@codemirror/lang-go")).go();
-    default:         return null; // plain text fallback
+    case "sql":
+      return (await import("@codemirror/lang-sql")).sql();
+    case "rs":
+      return (await import("@codemirror/lang-rust")).rust();
+    case "go":
+      return (await import("@codemirror/lang-go")).go();
+    default:
+      return null; // plain text fallback
   }
 }
 ```
@@ -551,6 +588,7 @@ Each layer is its own branch off fork `main`, merged to fork `main` when the lay
 **Branch:** `feat/workspace-layer-1-tree-preview`
 
 **Scope:**
+
 - Contracts: `projects.readFile`, `projects.listDirectory`
 - Server: `WorkspaceFileSystem.readFile`, new `WorkspaceTree` layer, handler registration
 - Web dependencies: add `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/search`, `@codemirror/language`, plus the language packs used by `resolveLanguage` (each loaded via dynamic import)
@@ -566,6 +604,7 @@ Each layer is its own branch off fork `main`, merged to fork `main` when the lay
 **Branch:** `feat/workspace-layer-2-editor`
 
 **Scope:**
+
 - Contracts: `projects.subscribeFile` (streaming)
 - Server: `WorkspaceFileSystem.subscribeFile` using `FileSystem.watch` + debounce pattern from `serverSettings.ts`
 - Web: `FileViewer` extended with edit mode, save handler, dirty tracking, cursor persistence, word-wrap toggle; `FileConflictBanner`; `useFileSubscription`; `useSaveFile`; `useUnsavedChangesGuard`; `workspaceStore` gains `isEditMode`, `editorContents`, `diskSha256`, `hasExternalChange`, `resolveExternalChange`; persisted dirty buffers
@@ -578,6 +617,7 @@ Each layer is its own branch off fork `main`, merged to fork `main` when the lay
 **Branch:** `feat/workspace-layer-3-navigation`
 
 **Scope:**
+
 - Web: `CommandPalette` + `.logic` + `.browser` tests, `useCommandPalette` hook, tab drag-reorder via `@dnd-kit/sortable`, middle-click tab close, `Cmd+W` close, global `Cmd+P` keybinding
 - Reuses existing `projects.searchEntries` — **zero new backend work**
 - Keybinding registration via the existing system (investigate pattern in `apps/server/src/keybindings.ts` and `packages/contracts/src/keybindings.ts`)
@@ -590,6 +630,7 @@ Each layer is its own branch off fork `main`, merged to fork `main` when the lay
 **Branch:** `feat/workspace-layer-4-file-ops`
 
 **Scope:**
+
 - Contracts: `projects.createFile`, `projects.createDirectory`, `projects.renameEntry`, `projects.deleteEntry`
 - Server: four new methods on `WorkspaceFileSystem` (live layer), each with path safety via `WorkspacePaths`
 - Web: `FileContextMenu` (shadcn `ContextMenu`), inline rename mode in `FileTreeNode`, destructive confirmation via shadcn `AlertDialog`, `useFileOperations` hook bundling the mutations, reveal/open-externally via existing `shell.openInEditor`
@@ -602,6 +643,7 @@ Each layer is its own branch off fork `main`, merged to fork `main` when the lay
 **Branch:** `feat/workspace-layer-5-git-decorations`
 
 **Scope:**
+
 - Web: `useGitStatusMap` hook consuming the existing `subscribeGitStatus` streaming RPC; `FileTreeNode` renders status badges (`M` / `A` / `?` / `!`) with color classes matching the existing `DiffPanel` git palette; new store slice for the status map, scoped per `cwd`
 - **Zero new backend work** — `subscribeGitStatus` already exists
 - Tests: `useGitStatusMap.logic.test.ts` (map maintenance on added/removed/updated files)
@@ -622,42 +664,52 @@ Matches t3code's existing test conventions — no new infrastructure.
 ## 11. Risks & mitigations
 
 ### R1 — CodeMirror 6 bundle bloat via eager language pack imports
+
 **Impact:** slow panel open; large initial chunk.
 **Mitigation:** every language pack goes behind `import()` in `resolveLanguage`. Vite's default chunking splits them automatically. Verify during L1 by building and inspecting `apps/web/dist/assets/` — each language pack should appear as its own small chunk. Fail the L1 done-criteria if the workspace panel's initial JS bundle exceeds 400 KB compressed.
 
 ### R2 — Linux inotify watch limit exhaustion
+
 **Impact:** new file subscriptions silently fail after ~8K active watches per user on Linux.
 **Mitigation:** `subscribeFile` implementation uses a **shared per-directory watcher** internally. One `fs.watch` per unique directory containing open files, with server-side routing of events to subscribers by path. Refcounted: the last unsubscribe closes the watcher. Watch count is bounded to "number of unique directories with open files" — dozens at most, not thousands.
 
 ### R3 — Binary detection false positives on UTF-16 / UTF-32
+
 **Impact:** legitimate UTF-16-encoded text files show as "binary."
 **Mitigation:** sniff first 8 KB for `\0` bytes AND check for UTF-16 / UTF-32 BOMs (`\xFF\xFE`, `\xFE\xFF`, `\x00\x00\xFE\xFF`, `\xFF\xFE\x00\x00`). If BOM is present, decode with the matching encoding and return as `text`. Covered by a unit test in `WorkspaceFileSystem.test.ts`.
 
 ### R4 — Upstream merge conflicts on the route file
+
 **Impact:** `_chat.$environmentId.$threadId.tsx` is the one existing React file we modify, and it is actively developed upstream.
 **Mitigation:** the change to this file is deliberately **minimal and localized** — swap `DiffPanelInlineSidebar` → `WorkspacePanelSidebar`, add one search param validator. Everything else stays identical. Upstream changes to `ChatView` integration, resize logic, or responsive behavior flow through cleanly because our diff footprint is a single component replacement plus a search parser addition.
 
 ### R5 — Many open tabs eat memory
+
 **Impact:** 50 tabs with multi-MB buffers = hundreds of MB in browser.
 **Mitigation:** Deferred buffer eviction. L1–L2 keep all buffers hot. If empirically needed, add an LRU policy: store holds full contents for the 5 most recently accessed tabs; older non-dirty tabs drop `serverContents` + `editorContents` and lazy-rehydrate on re-activation. Dirty buffers are pinned.
 
 ### R6 — CodeMirror 6 key capture conflicts with existing t3code shortcuts
+
 **Impact:** `Cmd+K`, `Cmd+Enter`, `Cmd+P`, etc. might be captured by CM6 when the editor has focus.
 **Mitigation:** configure CM6's keymap to explicitly `run: () => false` (bubble up) on any key registered in t3code's keybinding system. The keybinding registry exposes the active shortcut set. Tested in `FileViewer.browser.tsx`.
 
 ### R7 — Race: user clicks Save → file is modified externally → writeFile overwrites
+
 **Impact:** external edit silently lost.
 **Mitigation:** client-side precondition check **just before** the `projects.writeFile` call. Compare `buffer.diskSha256` (latest from `subscribeFile`) with `buffer.serverSha256` (what was originally read). If they differ AND the buffer is dirty, short-circuit the save and set `hasExternalChange = true`. User gets the conflict banner instead of an overwrite. Race window reduced to tens of milliseconds between the client check and the server write — acceptable for a single-user dev tool. If this becomes a problem, add an optional `baseSha256` field to `ProjectWriteFileInput` in a follow-up.
 
 ### R8 — Path separators on Windows
+
 **Impact:** relative paths stored with forward slashes but OS uses backslashes — tree expansion keys mismatch.
 **Mitigation:** normalize to forward slashes at every boundary — contracts, store keys, React Query keys, URL params. Server path operations happen on absolute OS paths inside `WorkspacePaths`; forward-slash relative paths are the public boundary. Primary development on macOS; Windows is verified manually during L4 (when file operations introduce rename/create).
 
 ### R9 — `projects.searchEntries` semantics may be insufficient for Cmd+P
+
 **Impact:** L3 may need a new backend RPC.
 **Verification:** at start of L3, read `WorkspaceEntries` layer to confirm (a) empty-or-wildcard query semantics, (b) result ordering, (c) whether it walks the whole tree or only a subtree. If insufficient, extend `WorkspaceEntries` or add `projects.fuzzyFind` within L3 scope.
 
 ### R10 — Dirty buffer persistence vs localStorage quota
+
 **Impact:** large in-progress edits could exceed the ~5-10 MB localStorage budget.
 **Mitigation:** cap persisted dirty buffers at 1 MB per file (matches the edit limit). Above that, don't persist; show a UI hint ("Unsaved changes in this file won't survive a refresh — save to persist"). IndexedDB is an escape hatch if this becomes painful.
 

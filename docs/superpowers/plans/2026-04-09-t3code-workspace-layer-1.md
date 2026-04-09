@@ -9,6 +9,7 @@
 **Tech Stack:** Node 24.13.1 + Bun 1.3.9 (pm only) · Effect 4.0 beta · `@effect/vitest` · `@effect/platform-node` · React 19 + Vite 8 · TanStack Router (file-based) · `@tanstack/react-query` · `@tanstack/react-virtual` · zustand 5 · CodeMirror 6 (new dep, dynamic-imported lang packs) · oxlint · oxfmt · vitest + vitest-browser-react.
 
 **Pre-flight checklist (run once before Task 1.1):**
+
 - [ ] Confirm you are on branch `feat/workspace-layer-1-tree-preview` (created off `feat/workspace-file-explorer-design` or off `main` after the design branch is merged to main)
 - [ ] Confirm `bun install` completes cleanly
 - [ ] Confirm `bun typecheck && bun lint && bun run test` are green on the base branch
@@ -19,64 +20,72 @@
 ## File structure
 
 ### Contracts (`packages/contracts/src/`)
-| File | Action | Responsibility |
-|---|---|---|
+
+| File         | Action | Responsibility                                                                                                                                                       |
+| ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `project.ts` | MODIFY | Add `ProjectReadFile*` and `ProjectListDirectory*` schemas colocated with the existing `ProjectSearchEntries*` / `ProjectWriteFile*`. Reuse existing `ProjectEntry`. |
-| `rpc.ts` | MODIFY | Add `WS_METHODS.projectsReadFile`, `projectsListDirectory`; add `WsProjectsReadFileRpc`, `WsProjectsListDirectoryRpc`; include both in `WsRpcGroup`. |
-| `ipc.ts` | MODIFY | Add `readFile` and `listDirectory` signatures to the `EnvironmentApi.projects` section. |
+| `rpc.ts`     | MODIFY | Add `WS_METHODS.projectsReadFile`, `projectsListDirectory`; add `WsProjectsReadFileRpc`, `WsProjectsListDirectoryRpc`; include both in `WsRpcGroup`.                 |
+| `ipc.ts`     | MODIFY | Add `readFile` and `listDirectory` signatures to the `EnvironmentApi.projects` section.                                                                              |
 
 ### Server (`apps/server/src/workspace/`)
-| File | Action | Responsibility |
-|---|---|---|
-| `Services/WorkspaceFileSystem.ts` | MODIFY | Add `readFile` to `WorkspaceFileSystemShape` interface. |
-| `Layers/WorkspaceFileSystem.ts` | MODIFY | Implement `readFile` in the live layer alongside the existing `writeFile`. |
-| `Layers/WorkspaceFileSystem.test.ts` | MODIFY | Add `readFile` test cases (text, too-large, binary, UTF-16 BOM, path escape). |
-| `Services/WorkspaceTree.ts` | CREATE | New Effect service for `listDirectory`. |
-| `Layers/WorkspaceTree.ts` | CREATE | Live layer implementation. |
-| `Layers/WorkspaceTree.test.ts` | CREATE | Test cases (happy path, sort order, ignored dirs, gitignore, truncation, path escape, nonexistent). |
+
+| File                                 | Action | Responsibility                                                                                      |
+| ------------------------------------ | ------ | --------------------------------------------------------------------------------------------------- |
+| `Services/WorkspaceFileSystem.ts`    | MODIFY | Add `readFile` to `WorkspaceFileSystemShape` interface.                                             |
+| `Layers/WorkspaceFileSystem.ts`      | MODIFY | Implement `readFile` in the live layer alongside the existing `writeFile`.                          |
+| `Layers/WorkspaceFileSystem.test.ts` | MODIFY | Add `readFile` test cases (text, too-large, binary, UTF-16 BOM, path escape).                       |
+| `Services/WorkspaceTree.ts`          | CREATE | New Effect service for `listDirectory`.                                                             |
+| `Layers/WorkspaceTree.ts`            | CREATE | Live layer implementation.                                                                          |
+| `Layers/WorkspaceTree.test.ts`       | CREATE | Test cases (happy path, sort order, ignored dirs, gitignore, truncation, path escape, nonexistent). |
 
 ### Server — RPC wiring (`apps/server/src/`)
-| File | Action | Responsibility |
-|---|---|---|
+
+| File    | Action | Responsibility                                                                                                                                                                                                                                                                 |
+| ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ws.ts` | MODIFY | Register `projects.readFile` and `projects.listDirectory` handlers in the `WsRpcGroup.of({ ... })` block around line 588 (near the existing `projectsSearchEntries` / `projectsWriteFile` handlers). Add a provision for `WorkspaceTree` in the surrounding layer composition. |
 
 ### Web dependencies (`apps/web/`)
-| File | Action | Responsibility |
-|---|---|---|
+
+| File           | Action | Responsibility                                                                                                                                                                          |
+| -------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `package.json` | MODIFY | Add CodeMirror 6 deps: `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/language`, `@codemirror/search`, and the language packs used by `resolveLanguage`. |
 
 ### Web — RPC client + API wrapping (`apps/web/src/`)
-| File | Action | Responsibility |
-|---|---|---|
-| `wsRpcClient.ts` | MODIFY | Add `readFile` and `listDirectory` to the `projects` interface and the implementation. |
-| `environmentApi.ts` | MODIFY | Wire the two new methods through `createEnvironmentApi`. |
-| `lib/workspaceReactQuery.ts` | CREATE | Query options + query keys for `readFile` and `listDirectory`. |
+
+| File                         | Action | Responsibility                                                                         |
+| ---------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| `wsRpcClient.ts`             | MODIFY | Add `readFile` and `listDirectory` to the `projects` interface and the implementation. |
+| `environmentApi.ts`          | MODIFY | Wire the two new methods through `createEnvironmentApi`.                               |
+| `lib/workspaceReactQuery.ts` | CREATE | Query options + query keys for `readFile` and `listDirectory`.                         |
 
 ### Web — Workspace state + routing (`apps/web/src/workspace/`)
-| File | Action | Responsibility |
-|---|---|---|
-| `workspaceStore.ts` | CREATE | Zustand store with `persist`. Keyed by `cwd`. Holds `openTabs`, `fileBuffers`, `treeExpansion`. |
-| `workspaceStore.test.ts` | CREATE | Pure store action tests. |
-| `workspaceRouteSearch.ts` | CREATE | TanStack Router search param parser for the `tab` param. |
-| `workspaceRouteSearch.test.ts` | CREATE | Parser tests. |
+
+| File                           | Action | Responsibility                                                                                  |
+| ------------------------------ | ------ | ----------------------------------------------------------------------------------------------- |
+| `workspaceStore.ts`            | CREATE | Zustand store with `persist`. Keyed by `cwd`. Holds `openTabs`, `fileBuffers`, `treeExpansion`. |
+| `workspaceStore.test.ts`       | CREATE | Pure store action tests.                                                                        |
+| `workspaceRouteSearch.ts`      | CREATE | TanStack Router search param parser for the `tab` param.                                        |
+| `workspaceRouteSearch.test.ts` | CREATE | Parser tests.                                                                                   |
 
 ### Web — Components (`apps/web/src/components/workspace/`)
-| File | Action | Responsibility |
-|---|---|---|
-| `resolveLanguage.ts` | CREATE | Extension → dynamic-imported CodeMirror language pack. |
-| `FileTree.logic.ts` | CREATE | Pure tree logic: entry sorting, path normalization. |
-| `FileTree.logic.test.ts` | CREATE | Unit tests. |
-| `FileTreeNode.tsx` | CREATE | Single tree row (stateless). |
-| `FileTree.tsx` | CREATE | Virtualized tree container via `@tanstack/react-virtual`. |
-| `FilesTreeTab.tsx` | CREATE | The `Files` tab content (wraps `FileTree`). |
-| `FileViewer.tsx` | CREATE | CodeMirror 6 read-only wrapper with dynamic language resolution. |
-| `FileTab.tsx` | CREATE | Single-file tab content (wraps `FileViewer`). |
-| `WorkspacePanelTabs.tsx` | CREATE | Tab strip rendered above the active tab's content. |
-| `WorkspacePanel.tsx` | CREATE | Top-level container: shadcn right sidebar + tab strip + dispatched tab content. |
+
+| File                     | Action | Responsibility                                                                  |
+| ------------------------ | ------ | ------------------------------------------------------------------------------- |
+| `resolveLanguage.ts`     | CREATE | Extension → dynamic-imported CodeMirror language pack.                          |
+| `FileTree.logic.ts`      | CREATE | Pure tree logic: entry sorting, path normalization.                             |
+| `FileTree.logic.test.ts` | CREATE | Unit tests.                                                                     |
+| `FileTreeNode.tsx`       | CREATE | Single tree row (stateless).                                                    |
+| `FileTree.tsx`           | CREATE | Virtualized tree container via `@tanstack/react-virtual`.                       |
+| `FilesTreeTab.tsx`       | CREATE | The `Files` tab content (wraps `FileTree`).                                     |
+| `FileViewer.tsx`         | CREATE | CodeMirror 6 read-only wrapper with dynamic language resolution.                |
+| `FileTab.tsx`            | CREATE | Single-file tab content (wraps `FileViewer`).                                   |
+| `WorkspacePanelTabs.tsx` | CREATE | Tab strip rendered above the active tab's content.                              |
+| `WorkspacePanel.tsx`     | CREATE | Top-level container: shadcn right sidebar + tab strip + dispatched tab content. |
 
 ### Web — Route integration (`apps/web/src/routes/`)
-| File | Action | Responsibility |
-|---|---|---|
+
+| File                                 | Action | Responsibility                                                                                                                                                                                                                           |
+| ------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_chat.$environmentId.$threadId.tsx` | MODIFY | Replace `DiffPanelInlineSidebar` with the new `WorkspacePanel` component. Combine `parseDiffRouteSearch` with the new `parseWorkspaceRouteSearch` in `validateSearch`. Leave `shouldAcceptInlineSidebarWidth` inline and pass as a prop. |
 
 ---
@@ -86,6 +95,7 @@
 ### Task 1.1: Add `ProjectReadFile*` schemas
 
 **Files:**
+
 - Modify: `packages/contracts/src/project.ts`
 
 - [ ] **Step 1: Open `packages/contracts/src/project.ts` and add these constants + schemas at the bottom of the file (after the existing `ProjectWriteFileError`):**
@@ -110,16 +120,16 @@ export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
 export const ProjectReadFileResult = Schema.Union([
   Schema.TaggedStruct("text", {
     contents: Schema.String,
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
     sha256: Schema.String,
   }),
   Schema.TaggedStruct("binary", {
-    size: Schema.NonNegativeInt,
+    size: NonNegativeInt,
     mime: Schema.optional(Schema.String),
   }),
   Schema.TaggedStruct("tooLarge", {
-    size: Schema.NonNegativeInt,
-    limit: Schema.NonNegativeInt,
+    size: NonNegativeInt,
+    limit: NonNegativeInt,
   }),
 ]);
 export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
@@ -153,6 +163,7 @@ git commit -m "feat(contracts): add ProjectReadFile schemas"
 ### Task 1.2: Add `ProjectListDirectory*` schemas
 
 **Files:**
+
 - Modify: `packages/contracts/src/project.ts`
 
 - [ ] **Step 1: Append these schemas after the `ProjectReadFileError` class you added in Task 1.1:**
@@ -200,6 +211,7 @@ git commit -m "feat(contracts): add ProjectListDirectory schemas"
 ### Task 1.3: Register new RPCs in `rpc.ts`
 
 **Files:**
+
 - Modify: `packages/contracts/src/rpc.ts`
 
 - [ ] **Step 1: Add imports for the new schemas**
@@ -284,6 +296,7 @@ git commit -m "feat(contracts): register projects.readFile and projects.listDire
 ### Task 1.4: Add methods to `EnvironmentApi`
 
 **Files:**
+
 - Modify: `packages/contracts/src/ipc.ts`
 
 - [ ] **Step 1: Update the imports at the top of `ipc.ts`**
@@ -308,21 +321,21 @@ import {
 Around line 185, the existing `projects` block reads:
 
 ```typescript
-  projects: {
-    searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
-    writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
-  };
+projects: {
+  searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
+  writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+}
 ```
 
 Replace with:
 
 ```typescript
-  projects: {
-    searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
-    writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
-    readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
-    listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
-  };
+projects: {
+  searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
+  writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+  readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
+  listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
+}
 ```
 
 - [ ] **Step 3: Typecheck**
@@ -340,6 +353,7 @@ git commit -m "feat(contracts): add readFile and listDirectory to EnvironmentApi
 ### Task 1.5: Add minimal schema decode tests for the new contracts
 
 **Files:**
+
 - Create: `packages/contracts/src/project.test.ts`
 
 The convention (see `git.test.ts`, `terminal.test.ts`, `orchestration.test.ts`) is to use `Schema.decodeUnknownSync` per schema with one or two representative cases each. Do NOT expand coverage to the pre-existing `ProjectSearchEntries*` / `ProjectWriteFile*` schemas — only test the new ones.
@@ -374,9 +388,7 @@ describe("ProjectReadFileInput", () => {
   });
 
   it("rejects blank relativePath", () => {
-    expect(() =>
-      decodeReadFileInput({ cwd: "/repo", relativePath: "" }),
-    ).toThrow();
+    expect(() => decodeReadFileInput({ cwd: "/repo", relativePath: "" })).toThrow();
   });
 });
 
@@ -411,9 +423,7 @@ describe("ProjectReadFileResult", () => {
   });
 
   it("rejects an unknown tag", () => {
-    expect(() =>
-      decodeReadFileResult({ _tag: "mystery", contents: "" }),
-    ).toThrow();
+    expect(() => decodeReadFileResult({ _tag: "mystery", contents: "" })).toThrow();
   });
 });
 
@@ -482,6 +492,7 @@ git commit -m "test(contracts): add schema decode tests for projects.readFile an
 ### Task 2.1: Add `readFile` to the service contract
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Services/WorkspaceFileSystem.ts`
 
 - [ ] **Step 1: Open the file and update the import block at the top**
@@ -540,10 +551,7 @@ export interface WorkspaceFileSystemShape {
    */
   readonly readFile: (
     input: ProjectReadFileInput,
-  ) => Effect.Effect<
-    ProjectReadFileResult,
-    ProjectReadFileError | WorkspacePathOutsideRootError
-  >;
+  ) => Effect.Effect<ProjectReadFileResult, ProjectReadFileError | WorkspacePathOutsideRootError>;
 }
 ```
 
@@ -557,6 +565,7 @@ Expected: **should fail** because `WorkspaceFileSystemLive` doesn't implement `r
 ### Task 2.2: Write failing test — reads a text file and returns sha256
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.test.ts`
 
 - [ ] **Step 1: Add an import for `crypto.createHash` at the top (we'll compare hashes in assertions):**
@@ -570,30 +579,30 @@ import { createHash } from "node:crypto";
 - [ ] **Step 2: Inside the existing `it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => { ... })` block, add a new `describe("readFile", ...)` block below the existing `describe("writeFile", ...)`:**
 
 ```typescript
-  describe("readFile", () => {
-    it.effect("reads a text file relative to the workspace root", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem;
-        const cwd = yield* makeTempDir;
-        const contents = "export const answer = 42;\n";
-        const expectedSha256 = createHash("sha256").update(contents, "utf8").digest("hex");
-        yield* writeTextFile(cwd, "src/answer.ts", contents);
+describe("readFile", () => {
+  it.effect("reads a text file relative to the workspace root", () =>
+    Effect.gen(function* () {
+      const workspaceFileSystem = yield* WorkspaceFileSystem;
+      const cwd = yield* makeTempDir;
+      const contents = "export const answer = 42;\n";
+      const expectedSha256 = createHash("sha256").update(contents, "utf8").digest("hex");
+      yield* writeTextFile(cwd, "src/answer.ts", contents);
 
-        const result = yield* workspaceFileSystem.readFile({
-          cwd,
-          relativePath: "src/answer.ts",
-        });
+      const result = yield* workspaceFileSystem.readFile({
+        cwd,
+        relativePath: "src/answer.ts",
+      });
 
-        expect(result._tag).toBe("text");
-        if (result._tag !== "text") {
-          throw new Error("unreachable: expected text result");
-        }
-        expect(result.contents).toBe(contents);
-        expect(result.size).toBe(Buffer.byteLength(contents, "utf8"));
-        expect(result.sha256).toBe(expectedSha256);
-      }),
-    );
-  });
+      expect(result._tag).toBe("text");
+      if (result._tag !== "text") {
+        throw new Error("unreachable: expected text result");
+      }
+      expect(result.contents).toBe(contents);
+      expect(result.size).toBe(Buffer.byteLength(contents, "utf8"));
+      expect(result.sha256).toBe(expectedSha256);
+    }),
+  );
+});
 ```
 
 - [ ] **Step 3: Run the test and confirm it fails**
@@ -604,6 +613,7 @@ Expected: **FAIL** with a type error about `workspaceFileSystem.readFile` not be
 ### Task 2.3: Implement `readFile` in the live layer
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.ts`
 
 - [ ] **Step 1: Update imports at the top of the file.**
@@ -649,9 +659,8 @@ import { WorkspacePaths } from "../Services/WorkspacePaths.ts";
 Insert this before the return statement:
 
 ```typescript
-  const readFile: WorkspaceFileSystemShape["readFile"] = Effect.fn(
-    "WorkspaceFileSystem.readFile",
-  )(function* (input) {
+const readFile: WorkspaceFileSystemShape["readFile"] = Effect.fn("WorkspaceFileSystem.readFile")(
+  function* (input) {
     const target = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,
@@ -707,7 +716,8 @@ Insert this before the return statement:
       sha256,
     };
     return result;
-  });
+  },
+);
 ```
 
 - [ ] **Step 3: Add two helper functions at the top of the file (outside `makeWorkspaceFileSystem`), before `export const makeWorkspaceFileSystem`:**
@@ -782,13 +792,13 @@ function decodeText(buffer: Buffer): string {
 Change the final return statement from:
 
 ```typescript
-  return { writeFile } satisfies WorkspaceFileSystemShape;
+return { writeFile } satisfies WorkspaceFileSystemShape;
 ```
 
 to:
 
 ```typescript
-  return { writeFile, readFile } satisfies WorkspaceFileSystemShape;
+return { writeFile, readFile } satisfies WorkspaceFileSystemShape;
 ```
 
 - [ ] **Step 5: Run the test from Task 2.2 and confirm it passes**
@@ -799,6 +809,7 @@ Expected: **PASS** for `reads a text file relative to the workspace root`. The e
 ### Task 2.4: Test — `tooLarge` response for files above the size limit
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.test.ts`
 
 - [ ] **Step 1: Import the size constant**
@@ -812,27 +823,27 @@ import { PROJECT_READ_FILE_MAX_BYTES } from "@t3tools/contracts";
 - [ ] **Step 2: Add a test inside the `describe("readFile", ...)` block:**
 
 ```typescript
-    it.effect("returns tooLarge for files above the preview limit", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem;
-        const cwd = yield* makeTempDir;
-        // One byte above the limit.
-        const size = PROJECT_READ_FILE_MAX_BYTES + 1;
-        const contents = "x".repeat(size);
-        yield* writeTextFile(cwd, "huge.txt", contents);
+it.effect("returns tooLarge for files above the preview limit", () =>
+  Effect.gen(function* () {
+    const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const cwd = yield* makeTempDir;
+    // One byte above the limit.
+    const size = PROJECT_READ_FILE_MAX_BYTES + 1;
+    const contents = "x".repeat(size);
+    yield* writeTextFile(cwd, "huge.txt", contents);
 
-        const result = yield* workspaceFileSystem.readFile({
-          cwd,
-          relativePath: "huge.txt",
-        });
+    const result = yield* workspaceFileSystem.readFile({
+      cwd,
+      relativePath: "huge.txt",
+    });
 
-        expect(result).toEqual({
-          _tag: "tooLarge",
-          size,
-          limit: PROJECT_READ_FILE_MAX_BYTES,
-        });
-      }),
-    );
+    expect(result).toEqual({
+      _tag: "tooLarge",
+      size,
+      limit: PROJECT_READ_FILE_MAX_BYTES,
+    });
+  }),
+);
 ```
 
 - [ ] **Step 3: Run and confirm it passes**
@@ -843,35 +854,36 @@ Expected: PASS.
 ### Task 2.5: Test — `binary` response for NUL-containing files
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.test.ts`
 
 - [ ] **Step 1: Add this test inside the `describe("readFile", ...)` block:**
 
 ```typescript
-    it.effect("detects binary files by NUL bytes in the first 8KB", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const cwd = yield* makeTempDir;
+it.effect("detects binary files by NUL bytes in the first 8KB", () =>
+  Effect.gen(function* () {
+    const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const cwd = yield* makeTempDir;
 
-        // Build a small "binary" buffer containing a NUL byte early.
-        const buffer = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01, 0x02, 0x03]);
-        const absolutePath = path.join(cwd, "program.bin");
-        yield* fileSystem.writeFile(absolutePath, buffer).pipe(Effect.orDie);
+    // Build a small "binary" buffer containing a NUL byte early.
+    const buffer = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01, 0x02, 0x03]);
+    const absolutePath = path.join(cwd, "program.bin");
+    yield* fileSystem.writeFile(absolutePath, buffer).pipe(Effect.orDie);
 
-        const result = yield* workspaceFileSystem.readFile({
-          cwd,
-          relativePath: "program.bin",
-        });
+    const result = yield* workspaceFileSystem.readFile({
+      cwd,
+      relativePath: "program.bin",
+    });
 
-        expect(result._tag).toBe("binary");
-        if (result._tag !== "binary") {
-          throw new Error("unreachable: expected binary result");
-        }
-        expect(result.size).toBe(buffer.byteLength);
-      }),
-    );
+    expect(result._tag).toBe("binary");
+    if (result._tag !== "binary") {
+      throw new Error("unreachable: expected binary result");
+    }
+    expect(result.size).toBe(buffer.byteLength);
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -882,39 +894,40 @@ Expected: PASS.
 ### Task 2.6: Test — UTF-16 BOM is decoded as text, not flagged as binary
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.test.ts`
 
 - [ ] **Step 1: Add this test inside `describe("readFile", ...)`:**
 
 ```typescript
-    it.effect("treats a UTF-16 LE BOM file as text", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const cwd = yield* makeTempDir;
+it.effect("treats a UTF-16 LE BOM file as text", () =>
+  Effect.gen(function* () {
+    const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const cwd = yield* makeTempDir;
 
-        const text = "hello\n";
-        // UTF-16 LE BOM + payload.
-        const payload = Buffer.from(text, "utf16le");
-        const bom = Buffer.from([0xff, 0xfe]);
-        const buffer = Buffer.concat([bom, payload]);
-        const absolutePath = path.join(cwd, "utf16.txt");
-        yield* fileSystem.writeFile(absolutePath, buffer).pipe(Effect.orDie);
+    const text = "hello\n";
+    // UTF-16 LE BOM + payload.
+    const payload = Buffer.from(text, "utf16le");
+    const bom = Buffer.from([0xff, 0xfe]);
+    const buffer = Buffer.concat([bom, payload]);
+    const absolutePath = path.join(cwd, "utf16.txt");
+    yield* fileSystem.writeFile(absolutePath, buffer).pipe(Effect.orDie);
 
-        const result = yield* workspaceFileSystem.readFile({
-          cwd,
-          relativePath: "utf16.txt",
-        });
+    const result = yield* workspaceFileSystem.readFile({
+      cwd,
+      relativePath: "utf16.txt",
+    });
 
-        expect(result._tag).toBe("text");
-        if (result._tag !== "text") {
-          throw new Error("unreachable: expected text result");
-        }
-        expect(result.contents).toBe(text);
-        expect(result.size).toBe(buffer.byteLength);
-      }),
-    );
+    expect(result._tag).toBe("text");
+    if (result._tag !== "text") {
+      throw new Error("unreachable: expected text result");
+    }
+    expect(result.contents).toBe(text);
+    expect(result.size).toBe(buffer.byteLength);
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -925,28 +938,29 @@ Expected: PASS.
 ### Task 2.7: Test — rejects paths outside the workspace root
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceFileSystem.test.ts`
 
 - [ ] **Step 1: Add this test inside `describe("readFile", ...)`:**
 
 ```typescript
-    it.effect("rejects reads outside the workspace root", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem;
-        const cwd = yield* makeTempDir;
+it.effect("rejects reads outside the workspace root", () =>
+  Effect.gen(function* () {
+    const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const cwd = yield* makeTempDir;
 
-        const error = yield* workspaceFileSystem
-          .readFile({
-            cwd,
-            relativePath: "../escape.md",
-          })
-          .pipe(Effect.flip);
+    const error = yield* workspaceFileSystem
+      .readFile({
+        cwd,
+        relativePath: "../escape.md",
+      })
+      .pipe(Effect.flip);
 
-        expect(error.message).toContain(
-          "Workspace file path must be relative to the project root: ../escape.md",
-        );
-      }),
+    expect(error.message).toContain(
+      "Workspace file path must be relative to the project root: ../escape.md",
     );
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -978,6 +992,7 @@ git commit -m "feat(server): implement WorkspaceFileSystem.readFile with binary 
 ### Task 3.1: Create the `WorkspaceTree` service contract
 
 **Files:**
+
 - Create: `apps/server/src/workspace/Services/WorkspaceTree.ts`
 
 - [ ] **Step 1: Create the new file with this exact content:**
@@ -994,10 +1009,7 @@ git commit -m "feat(server): implement WorkspaceFileSystem.readFile with binary 
 import { Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
-import type {
-  ProjectListDirectoryInput,
-  ProjectListDirectoryResult,
-} from "@t3tools/contracts";
+import type { ProjectListDirectoryInput, ProjectListDirectoryResult } from "@t3tools/contracts";
 
 import { WorkspacePathOutsideRootError } from "./WorkspacePaths.ts";
 
@@ -1051,6 +1063,7 @@ Expected: success (the service contract has no implementation yet, but it's self
 ### Task 3.2: Write failing test — lists the workspace root
 
 **Files:**
+
 - Create: `apps/server/src/workspace/Layers/WorkspaceTree.test.ts`
 
 - [ ] **Step 1: Create the test file with this exact content:**
@@ -1154,6 +1167,7 @@ Expected: **FAIL** — `WorkspaceTreeLive` is not defined yet.
 ### Task 3.3: Implement `WorkspaceTreeLive`
 
 **Files:**
+
 - Create: `apps/server/src/workspace/Layers/WorkspaceTree.ts`
 
 - [ ] **Step 1: Create the live layer with this exact content:**
@@ -1208,8 +1222,7 @@ export const makeWorkspaceTree = Effect.gen(function* () {
 
   const isInsideGitWorkTree = (cwd: string): Effect.Effect<boolean> =>
     Option.match(gitOption, {
-      onSome: (git) =>
-        git.isInsideWorkTree(cwd).pipe(Effect.catch(() => Effect.succeed(false))),
+      onSome: (git) => git.isInsideWorkTree(cwd).pipe(Effect.catch(() => Effect.succeed(false))),
       onNone: () => Effect.succeed(false),
     });
 
@@ -1219,12 +1232,10 @@ export const makeWorkspaceTree = Effect.gen(function* () {
   ): Effect.Effect<string[], never> =>
     Option.match(gitOption, {
       onSome: (git) =>
-        git
-          .filterIgnoredPaths(cwd, relativePaths)
-          .pipe(
-            Effect.map((paths) => [...paths]),
-            Effect.catch(() => Effect.succeed(relativePaths)),
-          ),
+        git.filterIgnoredPaths(cwd, relativePaths).pipe(
+          Effect.map((paths) => [...paths]),
+          Effect.catch(() => Effect.succeed(relativePaths)),
+        ),
       onNone: () => Effect.succeed(relativePaths),
     });
 
@@ -1328,31 +1339,32 @@ Expected: PASS for `lists the workspace root with directories first`.
 ### Task 3.4: Test — respects ignored directory names
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceTree.test.ts`
 
 - [ ] **Step 1: Add this test inside the `describe("listDirectory", ...)` block:**
 
 ```typescript
-    it.effect("filters out ignored directories like node_modules and .git", () =>
-      Effect.gen(function* () {
-        const workspaceTree = yield* WorkspaceTree;
-        const cwd = yield* makeTempDir;
+it.effect("filters out ignored directories like node_modules and .git", () =>
+  Effect.gen(function* () {
+    const workspaceTree = yield* WorkspaceTree;
+    const cwd = yield* makeTempDir;
 
-        yield* makeDir(cwd, "src");
-        yield* makeDir(cwd, "node_modules/react");
-        yield* makeDir(cwd, ".git/objects");
-        yield* makeDir(cwd, "dist");
-        yield* writeTextFile(cwd, "README.md", "# hi\n");
+    yield* makeDir(cwd, "src");
+    yield* makeDir(cwd, "node_modules/react");
+    yield* makeDir(cwd, ".git/objects");
+    yield* makeDir(cwd, "dist");
+    yield* writeTextFile(cwd, "README.md", "# hi\n");
 
-        const result = yield* workspaceTree.listDirectory({
-          cwd,
-          relativePath: "",
-        });
+    const result = yield* workspaceTree.listDirectory({
+      cwd,
+      relativePath: "",
+    });
 
-        const paths = result.entries.map((entry) => entry.path);
-        expect(paths).toEqual(["src", "README.md"]);
-      }),
-    );
+    const paths = result.entries.map((entry) => entry.path);
+    expect(paths).toEqual(["src", "README.md"]);
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -1363,47 +1375,50 @@ Expected: PASS.
 ### Task 3.5: Test — respects `.gitignore` when inside a git work tree
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceTree.test.ts`
 
 - [ ] **Step 1: Add this test inside `describe("listDirectory", ...)`:**
 
 ```typescript
-    it.effect("respects .gitignore inside a git work tree", () =>
-      Effect.gen(function* () {
-        const workspaceTree = yield* WorkspaceTree;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const cwd = yield* makeTempDir;
+it.effect("respects .gitignore inside a git work tree", () =>
+  Effect.gen(function* () {
+    const workspaceTree = yield* WorkspaceTree;
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const cwd = yield* makeTempDir;
 
-        // Initialize a git repo in the temp dir. Using raw fs + fsPromises via
-        // the GitCoreLive layer would be heavier — instead, just spawn `git init`
-        // via `fileSystem.exec` to keep this test fast.
-        yield* Effect.tryPromise({
-          try: async () => {
-            const { spawn } = await import("node:child_process");
-            await new Promise<void>((resolve, reject) => {
-              const child = spawn("git", ["init", "--quiet"], { cwd });
-              child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`git init exited ${code}`))));
-              child.on("error", reject);
-            });
-          },
-          catch: (cause) => new Error(`git init failed: ${String(cause)}`),
-        }).pipe(Effect.orDie);
-
-        yield* writeTextFile(cwd, ".gitignore", "secrets.env\n");
-        yield* writeTextFile(cwd, "README.md", "# hi\n");
-        yield* writeTextFile(cwd, "secrets.env", "TOKEN=xyz\n");
-
-        const result = yield* workspaceTree.listDirectory({
-          cwd,
-          relativePath: "",
+    // Initialize a git repo in the temp dir. Using raw fs + fsPromises via
+    // the GitCoreLive layer would be heavier — instead, just spawn `git init`
+    // via `fileSystem.exec` to keep this test fast.
+    yield* Effect.tryPromise({
+      try: async () => {
+        const { spawn } = await import("node:child_process");
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn("git", ["init", "--quiet"], { cwd });
+          child.on("exit", (code) =>
+            code === 0 ? resolve() : reject(new Error(`git init exited ${code}`)),
+          );
+          child.on("error", reject);
         });
+      },
+      catch: (cause) => new Error(`git init failed: ${String(cause)}`),
+    }).pipe(Effect.orDie);
 
-        const paths = result.entries.map((entry) => entry.path);
-        expect(paths).toContain("README.md");
-        expect(paths).toContain(".gitignore"); // dotfiles with includeHidden=false should still be filtered...
-      }),
-    );
+    yield* writeTextFile(cwd, ".gitignore", "secrets.env\n");
+    yield* writeTextFile(cwd, "README.md", "# hi\n");
+    yield* writeTextFile(cwd, "secrets.env", "TOKEN=xyz\n");
+
+    const result = yield* workspaceTree.listDirectory({
+      cwd,
+      relativePath: "",
+    });
+
+    const paths = result.entries.map((entry) => entry.path);
+    expect(paths).toContain("README.md");
+    expect(paths).toContain(".gitignore"); // dotfiles with includeHidden=false should still be filtered...
+  }),
+);
 ```
 
 **Note:** the final assertion is wrong on purpose — `.gitignore` is a dotfile and should be filtered out by `includeHidden: false`. This test will fail on that assertion, which is fine because we only care about the `secrets.env` behavior. Fix the test in Step 2.
@@ -1413,9 +1428,9 @@ Expected: PASS.
 Replace the final two `expect` lines with:
 
 ```typescript
-        expect(paths).toContain("README.md");
-        expect(paths).not.toContain("secrets.env"); // gitignored
-        expect(paths).not.toContain(".gitignore"); // dotfile, excluded by includeHidden=false default
+expect(paths).toContain("README.md");
+expect(paths).not.toContain("secrets.env"); // gitignored
+expect(paths).not.toContain(".gitignore"); // dotfile, excluded by includeHidden=false default
 ```
 
 - [ ] **Step 3: Run and confirm it passes**
@@ -1426,28 +1441,29 @@ Expected: PASS. If `.gitignore` filtering doesn't work, investigate `GitCore.fil
 ### Task 3.6: Test — rejects paths outside the workspace root
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceTree.test.ts`
 
 - [ ] **Step 1: Add this test inside `describe("listDirectory", ...)`:**
 
 ```typescript
-    it.effect("rejects paths outside the workspace root", () =>
-      Effect.gen(function* () {
-        const workspaceTree = yield* WorkspaceTree;
-        const cwd = yield* makeTempDir;
+it.effect("rejects paths outside the workspace root", () =>
+  Effect.gen(function* () {
+    const workspaceTree = yield* WorkspaceTree;
+    const cwd = yield* makeTempDir;
 
-        const error = yield* workspaceTree
-          .listDirectory({
-            cwd,
-            relativePath: "../escape",
-          })
-          .pipe(Effect.flip);
+    const error = yield* workspaceTree
+      .listDirectory({
+        cwd,
+        relativePath: "../escape",
+      })
+      .pipe(Effect.flip);
 
-        expect(error.message).toContain(
-          "Workspace file path must be relative to the project root: ../escape",
-        );
-      }),
+    expect(error.message).toContain(
+      "Workspace file path must be relative to the project root: ../escape",
     );
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -1458,37 +1474,38 @@ Expected: PASS.
 ### Task 3.7: Test — `includeHidden: true` shows dotfiles
 
 **Files:**
+
 - Modify: `apps/server/src/workspace/Layers/WorkspaceTree.test.ts`
 
 - [ ] **Step 1: Add this test inside `describe("listDirectory", ...)`:**
 
 ```typescript
-    it.effect("includes dotfiles when includeHidden is true", () =>
-      Effect.gen(function* () {
-        const workspaceTree = yield* WorkspaceTree;
-        const cwd = yield* makeTempDir;
+it.effect("includes dotfiles when includeHidden is true", () =>
+  Effect.gen(function* () {
+    const workspaceTree = yield* WorkspaceTree;
+    const cwd = yield* makeTempDir;
 
-        yield* writeTextFile(cwd, ".env", "PORT=3000\n");
-        yield* writeTextFile(cwd, "README.md", "# hi\n");
+    yield* writeTextFile(cwd, ".env", "PORT=3000\n");
+    yield* writeTextFile(cwd, "README.md", "# hi\n");
 
-        const resultHidden = yield* workspaceTree.listDirectory({
-          cwd,
-          relativePath: "",
-          includeHidden: true,
-        });
-        const hiddenPaths = resultHidden.entries.map((entry) => entry.path);
-        expect(hiddenPaths).toContain(".env");
-        expect(hiddenPaths).toContain("README.md");
+    const resultHidden = yield* workspaceTree.listDirectory({
+      cwd,
+      relativePath: "",
+      includeHidden: true,
+    });
+    const hiddenPaths = resultHidden.entries.map((entry) => entry.path);
+    expect(hiddenPaths).toContain(".env");
+    expect(hiddenPaths).toContain("README.md");
 
-        const resultDefault = yield* workspaceTree.listDirectory({
-          cwd,
-          relativePath: "",
-        });
-        const defaultPaths = resultDefault.entries.map((entry) => entry.path);
-        expect(defaultPaths).toContain("README.md");
-        expect(defaultPaths).not.toContain(".env");
-      }),
-    );
+    const resultDefault = yield* workspaceTree.listDirectory({
+      cwd,
+      relativePath: "",
+    });
+    const defaultPaths = resultDefault.entries.map((entry) => entry.path);
+    expect(defaultPaths).toContain("README.md");
+    expect(defaultPaths).not.toContain(".env");
+  }),
+);
 ```
 
 - [ ] **Step 2: Run and confirm it passes**
@@ -1519,6 +1536,7 @@ git commit -m "feat(server): add WorkspaceTree service + layer for per-directory
 ### Task 4.1: Wire `projects.readFile` and `projects.listDirectory` into `WsRpcGroup.of`
 
 **Files:**
+
 - Modify: `apps/server/src/ws.ts`
 
 - [ ] **Step 1: Update imports at the top of `ws.ts`.**
@@ -1553,8 +1571,8 @@ import { WorkspaceTreeLive } from "./workspace/Layers/WorkspaceTree.ts";
 Search for `workspaceFileSystem = yield* WorkspaceFileSystem;` and add the `WorkspaceTree` lookup immediately after:
 
 ```typescript
-    const workspaceFileSystem = yield* WorkspaceFileSystem;
-    const workspaceTree = yield* WorkspaceTree;
+const workspaceFileSystem = yield * WorkspaceFileSystem;
+const workspaceTree = yield * WorkspaceTree;
 ```
 
 - [ ] **Step 3: Find the `WsRpcGroup.of({ ... })` block (around line 406) and locate the existing `projects.writeFile` handler (around line 602). Immediately after that handler, add the two new ones:**
@@ -1633,6 +1651,7 @@ git commit -m "feat(server): register projects.readFile and projects.listDirecto
 ### Task 5.1: Add CodeMirror 6 dependencies
 
 **Files:**
+
 - Modify: `apps/web/package.json`
 
 - [ ] **Step 1: Add the CodeMirror 6 core + language packs via bun (from the repo root):**
@@ -1677,6 +1696,7 @@ git commit -m "feat(web): add CodeMirror 6 dependencies for workspace file viewe
 ### Task 5.2: Extend the RPC client's `projects` interface
 
 **Files:**
+
 - Modify: `apps/web/src/wsRpcClient.ts`
 
 - [ ] **Step 1: Find the `projects` interface block (around line 64-66) and extend it:**
@@ -1720,6 +1740,7 @@ git commit -m "feat(web): expose readFile and listDirectory in wsRpcClient"
 ### Task 5.3: Wire through `environmentApi`
 
 **Files:**
+
 - Modify: `apps/web/src/environmentApi.ts`
 
 - [ ] **Step 1: Update the `projects` block inside `createEnvironmentApi`:**
@@ -1748,6 +1769,7 @@ git commit -m "feat(web): expose readFile and listDirectory via environmentApi"
 ### Task 5.4: Create `workspaceReactQuery.ts`
 
 **Files:**
+
 - Create: `apps/web/src/lib/workspaceReactQuery.ts`
 
 - [ ] **Step 1: Create the file with this exact content:**
@@ -1816,11 +1838,7 @@ export function workspaceListDirectoryQueryOptions(input: {
   staleTime?: number;
 }) {
   return queryOptions({
-    queryKey: workspaceQueryKeys.listDirectory(
-      input.environmentId,
-      input.cwd,
-      input.relativePath,
-    ),
+    queryKey: workspaceQueryKeys.listDirectory(input.environmentId, input.cwd, input.relativePath),
     queryFn: async (): Promise<ProjectListDirectoryResult> => {
       if (!input.cwd || !input.environmentId) {
         throw new Error("Workspace directory listing is unavailable.");
@@ -1832,10 +1850,7 @@ export function workspaceListDirectoryQueryOptions(input: {
         includeHidden: input.includeHidden ?? false,
       });
     },
-    enabled:
-      (input.enabled ?? true) &&
-      input.environmentId !== null &&
-      input.cwd !== null,
+    enabled: (input.enabled ?? true) && input.environmentId !== null && input.cwd !== null,
     staleTime: input.staleTime ?? LIST_DIRECTORY_STALE_TIME_MS,
     placeholderData: (previous) => previous ?? EMPTY_LIST_DIRECTORY_RESULT,
   });
@@ -1861,6 +1876,7 @@ git commit -m "feat(web): add React Query options for workspace read-file and li
 ### Task 6.1: Create `workspaceStore.ts`
 
 **Files:**
+
 - Create: `apps/web/src/workspace/workspaceStore.ts`
 
 - [ ] **Step 1: Create the directory and file. Exact content:**
@@ -1876,7 +1892,12 @@ export type WorkspaceTabId =
 
 export type FileBufferState =
   | { readonly kind: "loading" }
-  | { readonly kind: "text"; readonly contents: string; readonly sha256: string; readonly size: number }
+  | {
+      readonly kind: "text";
+      readonly contents: string;
+      readonly sha256: string;
+      readonly size: number;
+    }
   | { readonly kind: "binary"; readonly size: number }
   | { readonly kind: "tooLarge"; readonly size: number; readonly limit: number }
   | { readonly kind: "error"; readonly message: string };
@@ -2031,6 +2052,7 @@ Expected: success.
 ### Task 6.2: Write `workspaceStore` unit tests
 
 **Files:**
+
 - Create: `apps/web/src/workspace/workspaceStore.test.ts`
 
 - [ ] **Step 1: Create the test file:**
@@ -2121,6 +2143,7 @@ git commit -m "feat(web): add workspaceStore with per-cwd tab + tree state"
 ### Task 6.3: Create `workspaceRouteSearch.ts`
 
 **Files:**
+
 - Create: `apps/web/src/workspace/workspaceRouteSearch.ts`
 
 - [ ] **Step 1: Create the file:**
@@ -2145,9 +2168,7 @@ export interface WorkspaceRouteSearch {
   tab?: WorkspaceTabId;
 }
 
-export function parseWorkspaceRouteSearch(
-  search: Record<string, unknown>,
-): WorkspaceRouteSearch {
+export function parseWorkspaceRouteSearch(search: Record<string, unknown>): WorkspaceRouteSearch {
   const raw = search.tab;
   if (typeof raw !== "string" || raw.length === 0) {
     return {};
@@ -2193,6 +2214,7 @@ Expected: success.
 ### Task 6.4: Write `workspaceRouteSearch` tests
 
 **Files:**
+
 - Create: `apps/web/src/workspace/workspaceRouteSearch.test.ts`
 
 - [ ] **Step 1: Create the test file:**
@@ -2288,6 +2310,7 @@ git commit -m "feat(web): add workspace route search param parser and serializer
 ### Task 7.1: Create `FileTree.logic.ts` with pure functions
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileTree.logic.ts`
 
 - [ ] **Step 1: Create the directory and file:**
@@ -2368,6 +2391,7 @@ export function toForwardSlashes(input: string): string {
 ### Task 7.2: Write `FileTree.logic` tests
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileTree.logic.test.ts`
 
 - [ ] **Step 1: Create the test file:**
@@ -2509,6 +2533,7 @@ git commit -m "feat(web): add FileTree pure logic for virtualized tree rendering
 ### Task 7.3: Create `resolveLanguage.ts`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/resolveLanguage.ts`
 
 - [ ] **Step 1: Create the file:**
@@ -2604,6 +2629,7 @@ git commit -m "feat(web): add dynamic CodeMirror 6 language resolver"
 ### Task 8.1: Create `FileTreeNode.tsx`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileTreeNode.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -2661,6 +2687,7 @@ Expected: success.
 ### Task 8.2: Create `FileTree.tsx` (virtualized container)
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileTree.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -2819,6 +2846,7 @@ Expected: success.
 ### Task 8.3: Create `FilesTreeTab.tsx`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FilesTreeTab.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -2857,6 +2885,7 @@ Expected: success.
 ### Task 8.4: Create `FileViewer.tsx` (CodeMirror 6 read-only)
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileViewer.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -2946,6 +2975,7 @@ Expected: success.
 ### Task 8.5: Create `FileTab.tsx`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/FileTab.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -3052,6 +3082,7 @@ Expected: success.
 ### Task 8.6: Create `WorkspacePanelTabs.tsx`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/WorkspacePanelTabs.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -3151,6 +3182,7 @@ Expected: success.
 ### Task 8.7: Create `WorkspacePanel.tsx`
 
 **Files:**
+
 - Create: `apps/web/src/components/workspace/WorkspacePanel.tsx`
 
 - [ ] **Step 1: Create the file:**
@@ -3262,6 +3294,7 @@ git commit -m "feat(web): add WorkspacePanel components with tab shell, tree, an
 ### Task 9.1: Modify the chat thread route to use `WorkspacePanel`
 
 **Files:**
+
 - Modify: `apps/web/src/routes/_chat.$environmentId.$threadId.tsx`
 
 - [ ] **Step 1: Update imports**
@@ -3350,7 +3383,7 @@ const DiffPanelInlineSidebar = (props: {
 Find how the existing code derives the project's cwd. Look for `serverThread` and check its shape — if it already carries a `cwd` field, use it. Add this line near the top of `ChatThreadRouteView`:
 
 ```typescript
-  const workspaceCwd = serverThread?.cwd ?? "";
+const workspaceCwd = serverThread?.cwd ?? "";
 ```
 
 If `serverThread` does not directly have a `cwd` field, trace `selectThreadByRef` and `createThreadSelectorByRef` to find the canonical cwd (it may come from the environment or from a sibling selector). The fallback to `""` keeps types happy; `workspaceListDirectoryQueryOptions` is gated on `cwd.length > 0` and disables itself when empty, so the tree won't attempt to fetch.
@@ -3360,26 +3393,26 @@ If `serverThread` does not directly have a `cwd` field, trace `selectThreadByRef
 Still inside `ChatThreadRouteView`, add:
 
 ```typescript
-  const workspaceActiveTab = useMemo<WorkspaceTabId>(() => {
-    if (search.tab) return search.tab;
-    return { kind: "changes" };
-  }, [search.tab]);
+const workspaceActiveTab = useMemo<WorkspaceTabId>(() => {
+  if (search.tab) return search.tab;
+  return { kind: "changes" };
+}, [search.tab]);
 
-  const handleSelectWorkspaceTab = useCallback(
-    (next: WorkspaceTabId) => {
-      if (!threadRef) return;
-      void navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(threadRef),
-        search: (previous) => ({
-          ...previous,
-          diff: "1",
-          tab: serializeWorkspaceTab(next),
-        }),
-      });
-    },
-    [navigate, threadRef],
-  );
+const handleSelectWorkspaceTab = useCallback(
+  (next: WorkspaceTabId) => {
+    if (!threadRef) return;
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(threadRef),
+      search: (previous) => ({
+        ...previous,
+        diff: "1",
+        tab: serializeWorkspaceTab(next),
+      }),
+    });
+  },
+  [navigate, threadRef],
+);
 ```
 
 Add the imports at the top of the file:
@@ -3423,7 +3456,7 @@ git commit -m "feat(web): mount WorkspacePanel inside the chat thread diff sideb
 
 ### Task 9.2: Build the web app and inspect CM6 chunks
 
-**Files:** *(build output only)*
+**Files:** _(build output only)_
 
 - [ ] **Step 1: Run the production build**
 
@@ -3441,7 +3474,7 @@ If this is the first build after CM6 was added, the chunk count will increase by
 
 ### Task 9.3: Manual smoke test
 
-**Files:** *(none — manual verification)*
+**Files:** _(none — manual verification)_
 
 - [ ] **Step 1: Start the dev server**
 
@@ -3465,7 +3498,7 @@ Expected: the server starts, the web app is reachable at the URL printed in the 
 
 ### Task 9.4: Final checks and branch cleanup
 
-**Files:** *(none — verification + git)*
+**Files:** _(none — verification + git)_
 
 - [ ] **Step 1: Run the complete check suite one last time**
 
