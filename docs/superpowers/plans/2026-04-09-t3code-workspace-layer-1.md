@@ -557,7 +557,7 @@ export interface WorkspaceFileSystemShape {
 
 - [ ] **Step 3: Typecheck the server**
 
-Run: `bun run --filter @t3tools/server typecheck`
+Run: `bun run --filter t3 typecheck`
 Expected: **should fail** because `WorkspaceFileSystemLive` doesn't implement `readFile` yet. This is intentional — we want the type system to drive us to the next task. Confirm the error message mentions `readFile`.
 
 - [ ] **Step 4: (Do NOT commit yet — commit after Task 2.5 when readFile is implemented and tests pass)**
@@ -607,7 +607,7 @@ describe("readFile", () => {
 
 - [ ] **Step 3: Run the test and confirm it fails**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: **FAIL** with a type error about `workspaceFileSystem.readFile` not being a function (or a runtime error). This is the "red" step of red-green-refactor.
 
 ### Task 2.3: Implement `readFile` in the live layer
@@ -803,7 +803,7 @@ return { writeFile, readFile } satisfies WorkspaceFileSystemShape;
 
 - [ ] **Step 5: Run the test from Task 2.2 and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: **PASS** for `reads a text file relative to the workspace root`. The existing `writeFile` tests should also still pass.
 
 ### Task 2.4: Test — `tooLarge` response for files above the size limit
@@ -848,7 +848,7 @@ it.effect("returns tooLarge for files above the preview limit", () =>
 
 - [ ] **Step 3: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: PASS.
 
 ### Task 2.5: Test — `binary` response for NUL-containing files
@@ -888,7 +888,7 @@ it.effect("detects binary files by NUL bytes in the first 8KB", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: PASS.
 
 ### Task 2.6: Test — UTF-16 BOM is decoded as text, not flagged as binary
@@ -932,7 +932,7 @@ it.effect("treats a UTF-16 LE BOM file as text", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: PASS.
 
 ### Task 2.7: Test — rejects paths outside the workspace root
@@ -965,14 +965,14 @@ it.effect("rejects reads outside the workspace root", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceFileSystem`
+Run: `bun run --filter t3 test -- WorkspaceFileSystem`
 Expected: PASS. The error bubbles up from `WorkspacePaths.resolveRelativePathWithinRoot` — no new code needed.
 
 ### Task 2.8: Commit Phase 2
 
 - [ ] **Step 1: Confirm everything is green**
 
-Run: `bun run --filter @t3tools/server typecheck && bun run --filter @t3tools/server test -- WorkspaceFileSystem && bun fmt:check`
+Run: `bun run --filter t3 typecheck && bun run --filter t3 test -- WorkspaceFileSystem && bun fmt:check`
 
 Expected: all green.
 
@@ -1055,7 +1055,7 @@ export class WorkspaceTree extends ServiceMap.Service<WorkspaceTree, WorkspaceTr
 
 - [ ] **Step 2: Typecheck the server**
 
-Run: `bun run --filter @t3tools/server typecheck`
+Run: `bun run --filter t3 typecheck`
 Expected: success (the service contract has no implementation yet, but it's self-contained).
 
 - [ ] **Step 3: Do NOT commit yet — commit after the live layer lands (Task 3.3).**
@@ -1161,7 +1161,7 @@ it.layer(TestLayer)("WorkspaceTreeLive", (it) => {
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: **FAIL** — `WorkspaceTreeLive` is not defined yet.
 
 ### Task 3.3: Implement `WorkspaceTreeLive`
@@ -1333,7 +1333,7 @@ export const WorkspaceTreeLive = Layer.effect(WorkspaceTree, makeWorkspaceTree);
 
 - [ ] **Step 2: Run the Task 3.2 test and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: PASS for `lists the workspace root with directories first`.
 
 ### Task 3.4: Test — respects ignored directory names
@@ -1369,7 +1369,7 @@ it.effect("filters out ignored directories like node_modules and .git", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: PASS.
 
 ### Task 3.5: Test — respects `.gitignore` when inside a git work tree
@@ -1435,7 +1435,7 @@ expect(paths).not.toContain(".gitignore"); // dotfile, excluded by includeHidden
 
 - [ ] **Step 3: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: PASS. If `.gitignore` filtering doesn't work, investigate `GitCore.filterIgnoredPaths` semantics (it may require the repo to have at least one commit).
 
 ### Task 3.6: Test — rejects paths outside the workspace root
@@ -1468,7 +1468,7 @@ it.effect("rejects paths outside the workspace root", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: PASS.
 
 ### Task 3.7: Test — `includeHidden: true` shows dotfiles
@@ -1510,14 +1510,14 @@ it.effect("includes dotfiles when includeHidden is true", () =>
 
 - [ ] **Step 2: Run and confirm it passes**
 
-Run: `bun run --filter @t3tools/server test -- WorkspaceTree`
+Run: `bun run --filter t3 test -- WorkspaceTree`
 Expected: PASS.
 
 ### Task 3.8: Commit Phase 3
 
 - [ ] **Step 1: Run all server checks**
 
-Run: `bun run --filter @t3tools/server typecheck && bun run --filter @t3tools/server test && bun fmt:check`
+Run: `bun run --filter t3 typecheck && bun run --filter t3 test && bun fmt:check`
 Expected: all green.
 
 - [ ] **Step 2: Commit**
@@ -1634,7 +1634,7 @@ If the exact composition differs, make the minimal change needed so `WorkspaceTr
 
 - [ ] **Step 5: Typecheck + test**
 
-Run: `bun run --filter @t3tools/server typecheck && bun run --filter @t3tools/server test`
+Run: `bun run --filter t3 typecheck && bun run --filter t3 test`
 Expected: all green.
 
 - [ ] **Step 6: Commit**
