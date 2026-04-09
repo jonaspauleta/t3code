@@ -46,7 +46,9 @@ export function WorkspacePanelTabs({
     >
       {tabs.map((tab) => {
         const isActive = tabsEqual(tab, activeTab);
-        const canClose = tab.kind !== "changes";
+        // Only actual file tabs are closable. "Changes" and "Files" are
+        // system tabs that always stay pinned at the start of the strip.
+        const canClose = tab.kind === "file";
         const isDirty = tab.kind === "file" && dirtyPaths.has(tab.relativePath);
         return (
           <button

@@ -24,10 +24,12 @@ const editorTheme = EditorView.theme({
     height: "100%",
     backgroundColor: "var(--background)",
     color: "var(--foreground)",
+    fontSize: "12px",
   },
   ".cm-scroller": {
     overflow: "auto",
     fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
+    lineHeight: "1.5",
   },
   ".cm-content": {
     caretColor: "var(--foreground)",
