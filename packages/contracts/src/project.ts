@@ -120,3 +120,38 @@ export class ProjectListDirectoryError extends Schema.TaggedErrorClass<ProjectLi
     cause: Schema.optional(Schema.Defect),
   },
 ) {}
+
+// ---------- Subscribe file (workspace Layer 2) ----------
+
+export const ProjectSubscribeFileInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+});
+export type ProjectSubscribeFileInput = typeof ProjectSubscribeFileInput.Type;
+
+/**
+ * Events emitted by `projects.subscribeFile`. "snapshot" is emitted on every
+ * fresh subscription (including after a WebSocket reconnect) so clients always
+ * have a baseline to reconcile against. "changed" is emitted after any
+ * debounced filesystem write. "deleted" is emitted on unlink.
+ */
+export const ProjectFileEvent = Schema.Union([
+  Schema.TaggedStruct("snapshot", {
+    sha256: Schema.String,
+    size: NonNegativeInt,
+  }),
+  Schema.TaggedStruct("changed", {
+    sha256: Schema.String,
+    size: NonNegativeInt,
+  }),
+  Schema.TaggedStruct("deleted", {}),
+]);
+export type ProjectFileEvent = typeof ProjectFileEvent.Type;
+
+export class ProjectSubscribeFileError extends Schema.TaggedErrorClass<ProjectSubscribeFileError>()(
+  "ProjectSubscribeFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
