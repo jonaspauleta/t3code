@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { PositiveInt, TrimmedNonEmptyString } from "./baseSchemas";
+import { NonNegativeInt, PositiveInt, TrimmedNonEmptyString } from "./baseSchemas";
 
 const PROJECT_SEARCH_ENTRIES_MAX_LIMIT = 200;
 const PROJECT_WRITE_FILE_PATH_MAX_LENGTH = 512;
@@ -48,6 +48,47 @@ export type ProjectWriteFileResult = typeof ProjectWriteFileResult.Type;
 
 export class ProjectWriteFileError extends Schema.TaggedErrorClass<ProjectWriteFileError>()(
   "ProjectWriteFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+// ---------- Read file (workspace Layer 1) ----------
+
+export const PROJECT_READ_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB preview limit
+export const PROJECT_EDIT_FILE_MAX_BYTES = 1 * 1024 * 1024; // 1 MB edit limit (consumed in Layer 2)
+
+export const ProjectReadFileInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+});
+export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
+
+/**
+ * Discriminated union result. "binary" and "tooLarge" are normal responses, not
+ * errors — the UI renders them differently. Errors are reserved for real IO
+ * failures (permission denied, read mid-stream, path escape).
+ */
+export const ProjectReadFileResult = Schema.Union([
+  Schema.TaggedStruct("text", {
+    contents: Schema.String,
+    size: NonNegativeInt,
+    sha256: Schema.String,
+  }),
+  Schema.TaggedStruct("binary", {
+    size: NonNegativeInt,
+    mime: Schema.optional(Schema.String),
+  }),
+  Schema.TaggedStruct("tooLarge", {
+    size: NonNegativeInt,
+    limit: NonNegativeInt,
+  }),
+]);
+export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
+
+export class ProjectReadFileError extends Schema.TaggedErrorClass<ProjectReadFileError>()(
+  "ProjectReadFileError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),
