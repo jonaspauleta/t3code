@@ -48,6 +48,7 @@ import { TerminalManager } from "./terminal/Services/Manager";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem";
 import { WorkspacePathOutsideRootError } from "./workspace/Services/WorkspacePaths";
+import { WorkspaceTree } from "./workspace/Services/WorkspaceTree";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner";
 import { RepositoryIdentityResolver } from "./project/Services/RepositoryIdentityResolver";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
@@ -70,6 +71,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const startup = yield* ServerRuntimeStartup;
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const workspaceTree = yield* WorkspaceTree;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
     const repositoryIdentityResolver = yield* RepositoryIdentityResolver;
     const serverEnvironment = yield* ServerEnvironment;
@@ -617,22 +619,43 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           ),
           { "rpc.aggregate": "workspace" },
         ),
-      [WS_METHODS.projectsReadFile]: (_input) =>
+      [WS_METHODS.projectsReadFile]: (input) =>
         observeRpcEffect(
           WS_METHODS.projectsReadFile,
-          Effect.fail(
-            new ProjectReadFileError({
-              message: "projects.readFile is not yet implemented",
+          workspaceFileSystem.readFile(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(ProjectReadFileError)(cause)) {
+                return cause;
+              }
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectReadFileError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectReadFileError({
+                message: "Failed to read workspace file",
+                cause,
+              });
             }),
           ),
           { "rpc.aggregate": "workspace" },
         ),
-      [WS_METHODS.projectsListDirectory]: (_input) =>
+      [WS_METHODS.projectsListDirectory]: (input) =>
         observeRpcEffect(
           WS_METHODS.projectsListDirectory,
-          Effect.fail(
-            new ProjectListDirectoryError({
-              message: "projects.listDirectory is not yet implemented",
+          workspaceTree.listDirectory(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectListDirectoryError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectListDirectoryError({
+                message: `Failed to list workspace directory: ${cause.detail}`,
+                cause,
+              });
             }),
           ),
           { "rpc.aggregate": "workspace" },

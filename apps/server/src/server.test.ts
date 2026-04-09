@@ -96,6 +96,7 @@ import {
 import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries.ts";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem.ts";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths.ts";
+import { WorkspaceTreeLive } from "./workspace/Layers/WorkspaceTree.ts";
 
 const defaultProjectId = ProjectId.makeUnsafe("project-default");
 const defaultThreadId = ThreadId.makeUnsafe("thread-default");
@@ -165,6 +166,7 @@ const workspaceAndProjectServicesLayer = Layer.mergeAll(
     Layer.provide(WorkspacePathsLive),
     Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
   ),
+  WorkspaceTreeLive.pipe(Layer.provide(WorkspacePathsLive)),
   ProjectFaviconResolverLive,
 );
 

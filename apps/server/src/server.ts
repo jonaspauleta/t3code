@@ -48,6 +48,7 @@ import { RepositoryIdentityResolverLive } from "./project/Layers/RepositoryIdent
 import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths";
+import { WorkspaceTreeLive } from "./workspace/Layers/WorkspaceTree";
 import { ProjectSetupScriptRunnerLive } from "./project/Layers/ProjectSetupScriptRunner";
 import { ObservabilityLive } from "./observability/Layers/Observability";
 import { ServerEnvironmentLive } from "./environment/Layers/ServerEnvironment";
@@ -186,6 +187,7 @@ const WorkspaceLayerLive = Layer.mergeAll(
     Layer.provide(WorkspacePathsLive),
     Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
   ),
+  WorkspaceTreeLive.pipe(Layer.provide(WorkspacePathsLive)),
 );
 
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(
