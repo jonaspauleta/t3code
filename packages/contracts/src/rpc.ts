@@ -45,6 +45,7 @@ import {
   OrchestrationRpcSchemas,
 } from "./orchestration";
 import {
+  ProjectFileEvent,
   ProjectListDirectoryError,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
@@ -54,6 +55,8 @@ import {
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectSubscribeFileError,
+  ProjectSubscribeFileInput,
   ProjectWriteFileError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
@@ -126,6 +129,7 @@ export const WS_METHODS = {
   subscribeTerminalEvents: "subscribeTerminalEvents",
   subscribeServerConfig: "subscribeServerConfig",
   subscribeServerLifecycle: "subscribeServerLifecycle",
+  subscribeProjectFile: "subscribeProjectFile",
 } as const;
 
 export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -190,6 +194,13 @@ export const WsSubscribeGitStatusRpc = Rpc.make(WS_METHODS.subscribeGitStatus, {
   payload: GitStatusInput,
   success: GitStatusStreamEvent,
   error: GitManagerServiceError,
+  stream: true,
+});
+
+export const WsSubscribeProjectFileRpc = Rpc.make(WS_METHODS.subscribeProjectFile, {
+  payload: ProjectSubscribeFileInput,
+  success: ProjectFileEvent,
+  error: ProjectSubscribeFileError,
   stream: true,
 });
 
@@ -366,6 +377,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsListDirectoryRpc,
   WsShellOpenInEditorRpc,
   WsSubscribeGitStatusRpc,
+  WsSubscribeProjectFileRpc,
   WsGitPullRpc,
   WsGitRefreshStatusRpc,
   WsGitRunStackedActionRpc,
