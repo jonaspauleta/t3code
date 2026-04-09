@@ -17,6 +17,12 @@ interface FileTreeProps {
 
 const ROW_HEIGHT = 22;
 
+// Stable empty-array references — used as the fallback inside zustand
+// selectors so cwds without a store entry return the SAME reference every
+// render. Without this, the selector would produce a fresh `[]` on every
+// render and trigger "Maximum update depth exceeded" in React.
+const EMPTY_EXPANDED_DIRECTORIES: ReadonlyArray<string> = [];
+
 /**
  * Custom hook: fetches listings for the workspace root plus every currently
  * expanded directory. `useQueries` tolerates a dynamically-sized array, so
@@ -40,7 +46,7 @@ function useDirectoryListings(
 
 export function FileTree({ environmentId, cwd, activeTab }: FileTreeProps) {
   const expandedDirectoriesList = useWorkspaceStore(
-    (state) => state.byCwd[cwd]?.expandedDirectories ?? [],
+    (state) => state.byCwd[cwd]?.expandedDirectories ?? EMPTY_EXPANDED_DIRECTORIES,
   );
   const expandedDirectories = useMemo(
     () => new Set(expandedDirectoriesList),

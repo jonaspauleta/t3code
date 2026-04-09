@@ -22,6 +22,12 @@ interface WorkspacePanelProps {
 const CHANGES_TAB: WorkspaceTabId = { kind: "changes" };
 const FILES_TAB: WorkspaceTabId = { kind: "files" };
 
+// Stable empty array reference — used as the fallback inside the zustand
+// selector so that cwds without a store entry return the SAME reference
+// every render. Without this, the selector would produce a fresh `[]` on
+// every render and trigger "Maximum update depth exceeded" in React.
+const EMPTY_OPEN_TABS: ReadonlyArray<WorkspaceTabId> = [];
+
 function tabsEqual(a: WorkspaceTabId, b: WorkspaceTabId): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "file" && b.kind === "file") {
@@ -36,7 +42,7 @@ export function WorkspacePanel({
   activeTab,
   onSelectTab,
 }: WorkspacePanelProps) {
-  const openTabs = useWorkspaceStore((state) => state.byCwd[cwd]?.openTabs ?? []);
+  const openTabs = useWorkspaceStore((state) => state.byCwd[cwd]?.openTabs ?? EMPTY_OPEN_TABS);
   const closeTab = useWorkspaceStore((state) => state.closeTab);
 
   const fullTabs = useMemo<ReadonlyArray<WorkspaceTabId>>(
