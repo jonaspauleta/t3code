@@ -82,8 +82,6 @@ const EMPTY_CWD_STATE: CwdWorkspaceState = {
   wordWrap: false,
 };
 
-const EDIT_PERSIST_MAX_BYTES = 1 * 1024 * 1024;
-
 function tabsEqual(a: WorkspaceTabId, b: WorkspaceTabId): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "file" && b.kind === "file") {
@@ -274,9 +272,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: "chat_workspace_state",
-      // Persist structural state + dirty editor buffers up to a cap.
-      // Heavy server-side contents are intentionally stripped; they'll be
-      // refetched on rehydration and reconciled by the next subscribe event.
+      // Persist structural state ONLY — tab layout, tree expansion, word-wrap.
+      // File buffers (including dirty editor contents) are NEVER persisted,
+      // because rehydrating them without reconciling against the current
+      // server sha256 causes stale `editorContents` from previous sessions
+      // to resurface as phantom "dirty" buffers whose contents don't match
+      // any real file state. Hot-exit (surviving a browser refresh with
+      // unsaved edits) would need a proper reconciliation pass — tracked
+      // as a Layer 2 follow-up, not shipping in the initial L2 drop.
       partialize: (state) =>
         ({
           byCwd: Object.fromEntries(
@@ -284,25 +287,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               cwd,
               {
                 openTabs: cwdState.openTabs,
-                fileBuffers: Object.fromEntries(
-                  Object.entries(cwdState.fileBuffers)
-                    .filter(
-                      ([, buffer]) =>
-                        buffer.editorContents !== null &&
-                        buffer.editorContents.length <= EDIT_PERSIST_MAX_BYTES,
-                    )
-                    .map(([relativePath, buffer]) => [
-                      relativePath,
-                      {
-                        ...buffer,
-                        // Don't persist stale server content — it'll be refetched.
-                        server: { kind: "loading" as const },
-                        hasExternalChange: false, // reconciled on next subscribe
-                        diskSha256: null,
-                        diskSize: null,
-                      },
-                    ]),
-                ),
+                fileBuffers: {},
                 expandedDirectories: cwdState.expandedDirectories,
                 wordWrap: cwdState.wordWrap,
               },
