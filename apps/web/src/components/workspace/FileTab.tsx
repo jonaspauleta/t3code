@@ -1,8 +1,10 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
+import { Button } from "~/components/ui/button";
 import { workspaceReadFileQueryOptions } from "~/lib/workspaceReactQuery";
+import { readLocalApi } from "~/localApi";
 import { useWorkspaceStore } from "~/workspace/workspaceStore";
 
 import { FileViewer } from "./FileViewer";
@@ -14,6 +16,16 @@ interface FileTabProps {
 }
 
 export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
+  const openExternally = useCallback(() => {
+    const api = readLocalApi();
+    if (!api) return;
+    // Construct an absolute path to the file so the file-manager editor can
+    // reveal it. Forward slashes are fine on all platforms because the server
+    // uses node's `path` module to normalize.
+    const absolutePath = `${cwd}/${relativePath}`;
+    void api.shell.openInEditor(absolutePath, "file-manager");
+  }, [cwd, relativePath]);
+
   const setFileBuffer = useWorkspaceStore((state) => state.setFileBuffer);
   const query = useQuery(
     workspaceReadFileQueryOptions({
@@ -67,23 +79,29 @@ export function FileTab({ environmentId, cwd, relativePath }: FileTabProps) {
   const data = query.data;
   if (data._tag === "tooLarge") {
     return (
-      <div className="flex flex-col gap-2 p-3 text-xs">
+      <div className="flex flex-col items-start gap-2 p-3 text-xs">
         <div className="font-medium">Too large to preview</div>
         <div className="text-muted-foreground">
           {relativePath} is {(data.size / (1024 * 1024)).toFixed(1)} MB. The preview limit is{" "}
           {(data.limit / (1024 * 1024)).toFixed(0)} MB.
         </div>
+        <Button size="sm" variant="outline" onClick={openExternally}>
+          Open externally
+        </Button>
       </div>
     );
   }
   if (data._tag === "binary") {
     return (
-      <div className="flex flex-col gap-2 p-3 text-xs">
+      <div className="flex flex-col items-start gap-2 p-3 text-xs">
         <div className="font-medium">Binary file</div>
         <div className="text-muted-foreground">
           {relativePath} appears to be a binary file ({data.size.toLocaleString()} bytes) and cannot
           be previewed.
         </div>
+        <Button size="sm" variant="outline" onClick={openExternally}>
+          Open externally
+        </Button>
       </div>
     );
   }

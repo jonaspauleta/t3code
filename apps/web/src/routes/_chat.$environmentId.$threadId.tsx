@@ -2,17 +2,10 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { scopeProjectRef } from "@t3tools/client-runtime";
 import { projectScriptCwd } from "@t3tools/shared/projectScripts";
 import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
-import { Suspense, lazy, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import ChatView from "../components/ChatView";
 import { threadHasStarted } from "../components/ChatView.logic";
-import { DiffWorkerPoolProvider } from "../components/DiffWorkerPoolProvider";
-import {
-  DiffPanelHeaderSkeleton,
-  DiffPanelLoadingState,
-  DiffPanelShell,
-  type DiffPanelMode,
-} from "../components/DiffPanelShell";
 import { WorkspacePanel } from "../components/workspace/WorkspacePanel";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "../composerDraftStore";
 import {
@@ -32,7 +25,6 @@ import { type WorkspaceTabId } from "../workspace/workspaceStore";
 import { Sheet, SheetPopup } from "../components/ui/sheet";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
 
-const DiffPanel = lazy(() => import("../components/DiffPanel"));
 const DIFF_INLINE_LAYOUT_MEDIA_QUERY = "(max-width: 1180px)";
 const DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY = "chat_diff_sidebar_width";
 const DIFF_INLINE_DEFAULT_WIDTH = "clamp(28rem,48vw,44rem)";
@@ -62,24 +54,6 @@ const DiffPanelSheet = (props: {
         {props.children}
       </SheetPopup>
     </Sheet>
-  );
-};
-
-const DiffLoadingFallback = (props: { mode: DiffPanelMode }) => {
-  return (
-    <DiffPanelShell mode={props.mode} header={<DiffPanelHeaderSkeleton />}>
-      <DiffPanelLoadingState label="Loading diff viewer..." />
-    </DiffPanelShell>
-  );
-};
-
-const LazyDiffPanel = (props: { mode: DiffPanelMode }) => {
-  return (
-    <DiffWorkerPoolProvider>
-      <Suspense fallback={<DiffLoadingFallback mode={props.mode} />}>
-        <DiffPanel mode={props.mode} />
-      </Suspense>
-    </DiffWorkerPoolProvider>
   );
 };
 
@@ -333,7 +307,14 @@ function ChatThreadRouteView() {
         />
       </SidebarInset>
       <DiffPanelSheet diffOpen={diffOpen} onCloseDiff={closeDiff}>
-        {shouldRenderDiffContent ? <LazyDiffPanel mode="sheet" /> : null}
+        {shouldRenderDiffContent && workspaceCwd !== null ? (
+          <WorkspacePanel
+            environmentId={threadRef.environmentId}
+            cwd={workspaceCwd}
+            activeTab={workspaceActiveTab}
+            onSelectTab={handleSelectWorkspaceTab}
+          />
+        ) : null}
       </DiffPanelSheet>
     </>
   );
