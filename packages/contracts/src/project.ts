@@ -94,3 +94,29 @@ export class ProjectReadFileError extends Schema.TaggedErrorClass<ProjectReadFil
     cause: Schema.optional(Schema.Defect),
   },
 ) {}
+
+// ---------- List directory (workspace Layer 1) ----------
+
+export const PROJECT_LIST_DIRECTORY_MAX_ENTRIES = 2000;
+
+export const ProjectListDirectoryInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: Schema.String, // "" for workspace root
+  includeHidden: Schema.optional(Schema.Boolean), // default false
+});
+export type ProjectListDirectoryInput = typeof ProjectListDirectoryInput.Type;
+
+export const ProjectListDirectoryResult = Schema.Struct({
+  relativePath: Schema.String,
+  entries: Schema.Array(ProjectEntry), // reuse existing ProjectEntry schema
+  truncated: Schema.Boolean,
+});
+export type ProjectListDirectoryResult = typeof ProjectListDirectoryResult.Type;
+
+export class ProjectListDirectoryError extends Schema.TaggedErrorClass<ProjectListDirectoryError>()(
+  "ProjectListDirectoryError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
