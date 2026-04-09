@@ -197,6 +197,7 @@
     },
   },
   "trustedDependencies": [
+    "electron",
     "node-pty",
   ],
   "overrides": {
