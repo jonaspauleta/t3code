@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { Schema } from "effect";
 
 import {
+  ProjectFileEvent,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectSubscribeFileInput,
   PROJECT_READ_FILE_MAX_BYTES,
 } from "./project";
 
@@ -13,6 +15,8 @@ const decodeReadFileInput = Schema.decodeUnknownSync(ProjectReadFileInput);
 const decodeReadFileResult = Schema.decodeUnknownSync(ProjectReadFileResult);
 const decodeListDirectoryInput = Schema.decodeUnknownSync(ProjectListDirectoryInput);
 const decodeListDirectoryResult = Schema.decodeUnknownSync(ProjectListDirectoryResult);
+const decodeSubscribeFileInput = Schema.decodeUnknownSync(ProjectSubscribeFileInput);
+const decodeFileEvent = Schema.decodeUnknownSync(ProjectFileEvent);
 
 describe("ProjectReadFileInput", () => {
   it("accepts a cwd and relativePath", () => {
@@ -106,5 +110,37 @@ describe("ProjectListDirectoryResult", () => {
     });
     expect(parsed.entries).toHaveLength(2);
     expect(parsed.entries[0]?.kind).toBe("file");
+  });
+});
+
+describe("ProjectSubscribeFileInput", () => {
+  it("accepts a cwd and relativePath", () => {
+    const parsed = decodeSubscribeFileInput({
+      cwd: "/repo",
+      relativePath: "src/index.ts",
+    });
+    expect(parsed.cwd).toBe("/repo");
+    expect(parsed.relativePath).toBe("src/index.ts");
+  });
+});
+
+describe("ProjectFileEvent", () => {
+  it("decodes a snapshot event", () => {
+    const parsed = decodeFileEvent({ _tag: "snapshot", sha256: "abc", size: 42 });
+    expect(parsed._tag).toBe("snapshot");
+  });
+
+  it("decodes a changed event", () => {
+    const parsed = decodeFileEvent({ _tag: "changed", sha256: "def", size: 100 });
+    expect(parsed._tag).toBe("changed");
+  });
+
+  it("decodes a deleted event", () => {
+    const parsed = decodeFileEvent({ _tag: "deleted" });
+    expect(parsed._tag).toBe("deleted");
+  });
+
+  it("rejects an unknown tag", () => {
+    expect(() => decodeFileEvent({ _tag: "mystery", sha256: "x", size: 0 })).toThrow();
   });
 });
