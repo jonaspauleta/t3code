@@ -18,6 +18,7 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       writeFile: rpcClient.projects.writeFile,
       readFile: rpcClient.projects.readFile,
       listDirectory: rpcClient.projects.listDirectory,
+      onFile: (input, callback, options) => rpcClient.projects.onFile(input, callback, options),
     },
     git: {
       pull: rpcClient.git.pull,

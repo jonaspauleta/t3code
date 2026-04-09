@@ -7,6 +7,7 @@ import {
   type LocalApi,
   ORCHESTRATION_WS_METHODS,
   type EnvironmentId,
+  type ProjectFileEvent,
   type ServerSettingsPatch,
   WS_METHODS,
 } from "@t3tools/contracts";
@@ -66,6 +67,11 @@ export interface WsRpcClient {
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
     readonly readFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadFile>;
     readonly listDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsListDirectory>;
+    readonly onFile: (
+      input: RpcInput<typeof WS_METHODS.subscribeProjectFile>,
+      listener: (event: ProjectFileEvent) => void,
+      options?: StreamSubscriptionOptions,
+    ) => () => void;
   };
   readonly shell: {
     readonly openInEditor: (input: {
@@ -297,6 +303,12 @@ export function createWsRpcClient(
         transport.request((client) => client[WS_METHODS.projectsReadFile](input)),
       listDirectory: (input) =>
         transport.request((client) => client[WS_METHODS.projectsListDirectory](input)),
+      onFile: (input, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeProjectFile](input),
+          listener,
+          options,
+        ),
     },
     shell: {
       openInEditor: (input) =>
