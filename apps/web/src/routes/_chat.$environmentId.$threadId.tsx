@@ -1,3 +1,6 @@
+import type { EnvironmentId } from "@t3tools/contracts";
+import { scopeProjectRef } from "@t3tools/client-runtime";
+import { projectScriptCwd } from "@t3tools/shared/projectScripts";
 import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
 import { Suspense, lazy, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -10,6 +13,7 @@ import {
   DiffPanelShell,
   type DiffPanelMode,
 } from "../components/DiffPanelShell";
+import { WorkspacePanel } from "../components/workspace/WorkspacePanel";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "../composerDraftStore";
 import {
   type DiffRouteSearch,
@@ -18,8 +22,13 @@ import {
 } from "../diffRouteSearch";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { selectEnvironmentState, selectThreadByRef, useStore } from "../store";
-import { createThreadSelectorByRef } from "../storeSelectors";
+import { createProjectSelectorByRef, createThreadSelectorByRef } from "../storeSelectors";
 import { resolveThreadRouteRef, buildThreadRouteParams } from "../threadRoutes";
+import {
+  parseWorkspaceRouteSearch,
+  serializeWorkspaceTab,
+} from "../workspace/workspaceRouteSearch";
+import { type WorkspaceTabId } from "../workspace/workspaceStore";
 import { Sheet, SheetPopup } from "../components/ui/sheet";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
 
@@ -79,6 +88,10 @@ const DiffPanelInlineSidebar = (props: {
   onCloseDiff: () => void;
   onOpenDiff: () => void;
   renderDiffContent: boolean;
+  environmentId: EnvironmentId;
+  cwd: string;
+  activeTab: WorkspaceTabId;
+  onSelectTab: (tab: WorkspaceTabId) => void;
 }) => {
   const { diffOpen, onCloseDiff, onOpenDiff, renderDiffContent } = props;
   const onOpenChange = useCallback(
@@ -155,7 +168,14 @@ const DiffPanelInlineSidebar = (props: {
           storageKey: DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY,
         }}
       >
-        {renderDiffContent ? <LazyDiffPanel mode="sidebar" /> : null}
+        {renderDiffContent ? (
+          <WorkspacePanel
+            environmentId={props.environmentId}
+            cwd={props.cwd}
+            activeTab={props.activeTab}
+            onSelectTab={props.onSelectTab}
+          />
+        ) : null}
         <SidebarRail />
       </Sidebar>
     </SidebarProvider>
@@ -172,6 +192,36 @@ function ChatThreadRouteView() {
     (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).bootstrapComplete,
   );
   const serverThread = useStore(useMemo(() => createThreadSelectorByRef(threadRef), [threadRef]));
+  const projectRef = serverThread
+    ? scopeProjectRef(serverThread.environmentId, serverThread.projectId)
+    : null;
+  const project = useStore(useMemo(() => createProjectSelectorByRef(projectRef), [projectRef]));
+  const workspaceCwd = project
+    ? projectScriptCwd({
+        project: { cwd: project.cwd },
+        worktreePath: serverThread?.worktreePath ?? null,
+      })
+    : null;
+  const workspaceActiveTab = useMemo<WorkspaceTabId>(() => {
+    const parsed = parseWorkspaceRouteSearch({ tab: search.tab }).tab;
+    if (parsed) return parsed;
+    return { kind: "changes" };
+  }, [search.tab]);
+  const handleSelectWorkspaceTab = useCallback(
+    (next: WorkspaceTabId) => {
+      if (!threadRef) return;
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(threadRef),
+        search: (previous) => ({
+          ...previous,
+          diff: "1" as const,
+          tab: serializeWorkspaceTab(next),
+        }),
+      });
+    },
+    [navigate, threadRef],
+  );
   const threadExists = useStore((store) => selectThreadByRef(store, threadRef) !== undefined);
   const environmentHasServerThreads = useStore(
     (store) => selectEnvironmentState(store, threadRef?.environmentId ?? null).threadIds.length > 0,
@@ -257,12 +307,18 @@ function ChatThreadRouteView() {
             routeKind="server"
           />
         </SidebarInset>
-        <DiffPanelInlineSidebar
-          diffOpen={diffOpen}
-          onCloseDiff={closeDiff}
-          onOpenDiff={openDiff}
-          renderDiffContent={shouldRenderDiffContent}
-        />
+        {workspaceCwd !== null ? (
+          <DiffPanelInlineSidebar
+            diffOpen={diffOpen}
+            onCloseDiff={closeDiff}
+            onOpenDiff={openDiff}
+            renderDiffContent={shouldRenderDiffContent}
+            environmentId={threadRef.environmentId}
+            cwd={workspaceCwd}
+            activeTab={workspaceActiveTab}
+            onSelectTab={handleSelectWorkspaceTab}
+          />
+        ) : null}
       </>
     );
   }
@@ -283,10 +339,23 @@ function ChatThreadRouteView() {
   );
 }
 
+type RouteSearchState = DiffRouteSearch & { tab?: string | undefined };
+
 export const Route = createFileRoute("/_chat/$environmentId/$threadId")({
-  validateSearch: (search) => parseDiffRouteSearch(search),
+  validateSearch: (search): RouteSearchState => {
+    const diffParsed = parseDiffRouteSearch(search);
+    // Normalize the tab param to its serialized string form. The URL stores
+    // tokens like "changes" / "files" / "file:src%2Findex.ts" and the component
+    // re-parses via parseWorkspaceRouteSearch as needed.
+    const workspaceParsed = parseWorkspaceRouteSearch(search);
+    const tabString = workspaceParsed.tab ? serializeWorkspaceTab(workspaceParsed.tab) : undefined;
+    return {
+      ...diffParsed,
+      ...(tabString ? { tab: tabString } : {}),
+    };
+  },
   search: {
-    middlewares: [retainSearchParams<DiffRouteSearch>(["diff"])],
+    middlewares: [retainSearchParams<RouteSearchState>(["diff", "tab"])],
   },
   component: ChatThreadRouteView,
 });
