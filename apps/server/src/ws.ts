@@ -11,6 +11,8 @@ import {
   OrchestrationGetSnapshotError,
   OrchestrationGetTurnDiffError,
   ORCHESTRATION_WS_METHODS,
+  ProjectListDirectoryError,
+  ProjectReadFileError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
   OrchestrationReplayEventsError,
@@ -611,6 +613,26 @@ const WsRpcLayer = WsRpcGroup.toLayer(
                 message,
                 cause,
               });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsReadFile]: (_input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsReadFile,
+          Effect.fail(
+            new ProjectReadFileError({
+              message: "projects.readFile is not yet implemented",
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsListDirectory]: (_input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsListDirectory,
+          Effect.fail(
+            new ProjectListDirectoryError({
+              message: "projects.listDirectory is not yet implemented",
             }),
           ),
           { "rpc.aggregate": "workspace" },
