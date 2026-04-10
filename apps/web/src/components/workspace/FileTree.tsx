@@ -175,7 +175,7 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
       <div
         ref={scrollParentRef}
         className="h-full min-h-0 overflow-y-auto"
-        style={{ contain: "strict" }}
+        style={{ contain: "layout paint" }}
       >
         <div
           style={{

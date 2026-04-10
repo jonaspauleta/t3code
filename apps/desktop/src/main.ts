@@ -1936,13 +1936,19 @@ app
 app.on("window-all-closed", () => {
   if (isQuitting) {
     // The user confirmed the quit (or had no unsaved changes). Tear
-    // down the backend now that every window has closed.
+    // down the backend now that every window has closed, then exit.
     cancelBackendReadinessWait();
     stopBackend();
     restoreStdIoCapture?.();
+    // Use app.exit() to terminate immediately without re-firing
+    // before-quit (which would loop). On macOS, window-all-closed
+    // normally keeps the app running in the Dock, but Cmd+Q means
+    // the user explicitly wants to quit.
+    app.exit(0);
+    return;
   }
 
-  if (process.platform !== "darwin" && !isQuitting) {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
