@@ -7,9 +7,18 @@ import { useGitStatus } from "~/lib/gitStatusState";
 import { workspaceListDirectoryQueryOptions } from "~/lib/workspaceReactQuery";
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
-import { buildVisibleRows, type DirectoryListingSnapshot } from "./FileTree.logic";
+import { buildVisibleRows, type DirectoryListingSnapshot, type FileTreeRow } from "./FileTree.logic";
 import { useFileContextMenu } from "./FileContextMenu";
 import { FileTreeNode } from "./FileTreeNode";
+
+/** A placeholder row shown while a directory's listing is loading. */
+interface FileTreeLoadingRow {
+  readonly kind: "loading";
+  readonly depth: number;
+  readonly parentPath: string;
+}
+
+type FileTreeDisplayRow = (FileTreeRow & { readonly kind?: undefined }) | FileTreeLoadingRow;
 
 interface FileTreeProps {
   readonly environmentId: EnvironmentId;
@@ -110,10 +119,19 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
     return map;
   }, [rootQuery.data, subtreeQueries]);
 
-  const visibleRows = useMemo(
-    () => buildVisibleRows({ listingsByRelativePath, expandedDirectories }),
-    [listingsByRelativePath, expandedDirectories],
-  );
+  const visibleRows: ReadonlyArray<FileTreeDisplayRow> = useMemo(() => {
+    const rows = buildVisibleRows({ listingsByRelativePath, expandedDirectories });
+    // Insert loading-placeholder rows after expanded directories whose
+    // listings haven't arrived yet so the user sees immediate feedback.
+    const result: FileTreeDisplayRow[] = [];
+    for (const row of rows) {
+      result.push(row);
+      if (row.isExpanded && !listingsByRelativePath.has(row.entry.path)) {
+        result.push({ kind: "loading", depth: row.depth + 1, parentPath: row.entry.path });
+      }
+    }
+    return result;
+  }, [listingsByRelativePath, expandedDirectories]);
 
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer({
@@ -126,7 +144,7 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
   const activeRelativePath = activeTab?.kind === "file" ? activeTab.relativePath : null;
 
   const handleNodeClick = useCallback(
-    (row: (typeof visibleRows)[number]) => {
+    (row: FileTreeRow) => {
       if (row.entry.kind === "directory") {
         toggleDirectory(cwd, row.entry.path);
         return;
@@ -160,6 +178,27 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const row = visibleRows[virtualRow.index]!;
+
+            if (row.kind === "loading") {
+              return (
+                <div
+                  key={`loading:${row.parentPath}`}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingLeft: `${row.depth * 12 + 4}px`,
+                  }}
+                  className="flex items-center text-xs text-muted-foreground animate-pulse"
+                >
+                  Loading…
+                </div>
+              );
+            }
+
             const isActive = row.entry.path === activeRelativePath;
             return (
               <div
