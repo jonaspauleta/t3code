@@ -81,7 +81,11 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
   const openFile = useWorkspaceStore((state) => state.openFile);
   const toggleDirectory = useWorkspaceStore((state) => state.toggleDirectory);
 
-  const handleContextMenu = useFileContextMenu({ environmentId, cwd, onSelectTab });
+  const [handleContextMenu, promptElement] = useFileContextMenu({
+    environmentId,
+    cwd,
+    onSelectTab,
+  });
 
   const { rootQuery, subtreeQueries } = useDirectoryListings(
     environmentId,
@@ -145,40 +149,43 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
   }
 
   return (
-    <div ref={scrollParentRef} className="h-full min-h-0 overflow-y-auto">
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          position: "relative",
-          width: "100%",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const row = visibleRows[virtualRow.index]!;
-          const isActive = row.entry.path === activeRelativePath;
-          return (
-            <div
-              key={row.entry.path}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <FileTreeNode
-                row={row}
-                isActive={isActive}
-                gitStatus={modifiedPaths.has(row.entry.path) ? "modified" : null}
-                onClick={handleNodeClick}
-                onContextMenu={handleContextMenu}
-              />
-            </div>
-          );
-        })}
+    <>
+      <div ref={scrollParentRef} className="h-full min-h-0 overflow-y-auto">
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: "relative",
+            width: "100%",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const row = visibleRows[virtualRow.index]!;
+            const isActive = row.entry.path === activeRelativePath;
+            return (
+              <div
+                key={row.entry.path}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <FileTreeNode
+                  row={row}
+                  isActive={isActive}
+                  gitStatus={modifiedPaths.has(row.entry.path) ? "modified" : null}
+                  onClick={handleNodeClick}
+                  onContextMenu={handleContextMenu}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+      {promptElement}
+    </>
   );
 }

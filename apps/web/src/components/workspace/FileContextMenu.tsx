@@ -1,5 +1,5 @@
 import type { ContextMenuItem, EnvironmentId } from "@t3tools/contracts";
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 
 import { readLocalApi } from "~/localApi";
 import { openInPreferredEditor } from "~/editorPreferences";
@@ -12,6 +12,7 @@ import {
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
 import type { FileTreeRow } from "./FileTree.logic";
+import { usePrompt } from "./PromptModal";
 
 type FileContextMenuAction =
   | "newFile"
@@ -57,12 +58,23 @@ interface UseFileContextMenuInput {
 }
 
 /**
- * Hook that returns a handler for `onContextMenu` events on file tree nodes.
+ * Hook that returns `[handler, promptElement]` for `onContextMenu` events on
+ * file tree nodes.
  *
  * Uses `localApi.contextMenu.show()` for the menu UI (native on desktop,
  * fallback in browser) and React Query mutations for file operations.
+ *
+ * `promptElement` must be rendered by the calling component — it portals a
+ * small text-input modal when one of the name-prompting actions is active.
  */
-export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileContextMenuInput) {
+export function useFileContextMenu({
+  environmentId,
+  cwd,
+  onSelectTab,
+}: UseFileContextMenuInput): [
+  (row: FileTreeRow, position: { x: number; y: number }) => Promise<void>,
+  ReactNode,
+] {
   const createFile = useCreateFile(environmentId);
   const createDirectory = useCreateDirectory(environmentId);
   const renameEntry = useRenameEntry(environmentId);
@@ -70,8 +82,9 @@ export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileC
   const openFile = useWorkspaceStore((state) => state.openFile);
   const closeTab = useWorkspaceStore((state) => state.closeTab);
   const renameOpenFile = useWorkspaceStore((state) => state.renameOpenFile);
+  const [showPrompt, promptElement] = usePrompt();
 
-  return useCallback(
+  const handler = useCallback(
     async (row: FileTreeRow, position: { x: number; y: number }) => {
       const api = readLocalApi();
       if (!api) return;
@@ -85,7 +98,7 @@ export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileC
 
       switch (action) {
         case "newFile": {
-          const name = window.prompt("New file name:");
+          const name = await showPrompt({ title: "New file name:" });
           if (!name) return;
           const parentDir = getTargetDirectoryPath(row);
           const newPath = parentDir ? `${parentDir}/${name}` : name;
@@ -98,7 +111,7 @@ export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileC
           break;
         }
         case "newFolder": {
-          const name = window.prompt("New folder name:");
+          const name = await showPrompt({ title: "New folder name:" });
           if (!name) return;
           const parentDir = getTargetDirectoryPath(row);
           const newPath = parentDir ? `${parentDir}/${name}` : name;
@@ -107,7 +120,7 @@ export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileC
         }
         case "rename": {
           const currentName = relativePath.split("/").pop() ?? relativePath;
-          const newName = window.prompt("New name:", currentName);
+          const newName = await showPrompt({ title: "New name:", defaultValue: currentName });
           if (!newName || newName === currentName) return;
           const parentDir = row.entry.parentPath ?? "";
           const nextRelativePath = parentDir ? `${parentDir}/${newName}` : newName;
@@ -164,6 +177,9 @@ export function useFileContextMenu({ environmentId, cwd, onSelectTab }: UseFileC
       closeTab,
       renameOpenFile,
       onSelectTab,
+      showPrompt,
     ],
   );
+
+  return [handler, promptElement];
 }
