@@ -49,11 +49,26 @@ function useDirectoryListings(
 
 export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTreeProps) {
   // Git status for the working tree — gives us the set of modified file paths.
+  // Git status paths are relative to the git REPO ROOT (e.g. "apps/server/src/config.ts"),
+  // but tree entry paths are relative to the project CWD (e.g. "src/config.ts").
+  // When the project CWD is a subdirectory of the repo, these don't match.
+  // We build a set of all path suffixes so the comparison works regardless
+  // of how deep the project CWD is nested inside the repo.
   const gitStatus = useGitStatus({ environmentId, cwd });
   const modifiedPaths = useMemo(() => {
     const files = gitStatus.data?.workingTree?.files;
     if (!files || files.length === 0) return EMPTY_MODIFIED_PATHS;
-    return new Set(files.map((f) => f.path));
+    const set = new Set<string>();
+    for (const f of files) {
+      // Add the full path and every suffix (stripping leading segments one
+      // at a time) so that "apps/server/src/config.ts" also matches
+      // "server/src/config.ts", "src/config.ts", and "config.ts".
+      const parts = f.path.split("/");
+      for (let i = 0; i < parts.length; i++) {
+        set.add(parts.slice(i).join("/"));
+      }
+    }
+    return set;
   }, [gitStatus.data?.workingTree?.files]);
 
   const expandedDirectoriesList = useWorkspaceStore(
