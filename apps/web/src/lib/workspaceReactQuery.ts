@@ -1,8 +1,16 @@
 import type {
   EnvironmentId,
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteEntryInput,
+  ProjectDeleteEntryResult,
   ProjectFileEvent,
   ProjectListDirectoryResult,
   ProjectReadFileResult,
+  ProjectRenameEntryInput,
+  ProjectRenameEntryResult,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "@t3tools/contracts";
@@ -133,6 +141,127 @@ export function useSaveFile(environmentId: EnvironmentId | null) {
       });
       // Invalidate git status so the DiffPanel refreshes.
       queryClient.invalidateQueries({ queryKey: ["git", "status"] });
+    },
+  });
+}
+
+/**
+ * Invalidate all `listDirectory` queries for the given cwd so the tree
+ * refreshes after any file operation.
+ */
+function invalidateTreeQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  environmentId: EnvironmentId | null,
+  cwd: string,
+) {
+  queryClient.invalidateQueries({
+    queryKey: ["workspace", "list-directory", environmentId ?? null, cwd],
+  });
+  queryClient.invalidateQueries({ queryKey: ["git", "status"] });
+}
+
+/**
+ * Mutation hook for `projects.createFile`.
+ */
+export function useCreateFile(environmentId: EnvironmentId | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cwd: string;
+      relativePath: string;
+      contents?: string;
+      overwrite?: boolean;
+    }): Promise<ProjectCreateFileResult> => {
+      if (!environmentId) {
+        throw new Error("Workspace create file is unavailable.");
+      }
+      const api = ensureEnvironmentApi(environmentId);
+      return api.projects.createFile(input as ProjectCreateFileInput);
+    },
+    onSuccess: (_result, variables) => {
+      invalidateTreeQueries(queryClient, environmentId, variables.cwd);
+    },
+  });
+}
+
+/**
+ * Mutation hook for `projects.createDirectory`.
+ */
+export function useCreateDirectory(environmentId: EnvironmentId | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cwd: string;
+      relativePath: string;
+    }): Promise<ProjectCreateDirectoryResult> => {
+      if (!environmentId) {
+        throw new Error("Workspace create directory is unavailable.");
+      }
+      const api = ensureEnvironmentApi(environmentId);
+      return api.projects.createDirectory(input as ProjectCreateDirectoryInput);
+    },
+    onSuccess: (_result, variables) => {
+      invalidateTreeQueries(queryClient, environmentId, variables.cwd);
+    },
+  });
+}
+
+/**
+ * Mutation hook for `projects.renameEntry`.
+ */
+export function useRenameEntry(environmentId: EnvironmentId | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cwd: string;
+      relativePath: string;
+      nextRelativePath: string;
+    }): Promise<ProjectRenameEntryResult> => {
+      if (!environmentId) {
+        throw new Error("Workspace rename entry is unavailable.");
+      }
+      const api = ensureEnvironmentApi(environmentId);
+      return api.projects.renameEntry(input as ProjectRenameEntryInput);
+    },
+    onSuccess: (_result, variables) => {
+      invalidateTreeQueries(queryClient, environmentId, variables.cwd);
+      // Invalidate read-file queries for both old and new paths.
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.readFile(environmentId, variables.cwd, variables.relativePath),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.readFile(
+          environmentId,
+          variables.cwd,
+          variables.nextRelativePath,
+        ),
+      });
+    },
+  });
+}
+
+/**
+ * Mutation hook for `projects.deleteEntry`.
+ */
+export function useDeleteEntry(environmentId: EnvironmentId | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      cwd: string;
+      relativePath: string;
+      recursive?: boolean;
+    }): Promise<ProjectDeleteEntryResult> => {
+      if (!environmentId) {
+        throw new Error("Workspace delete entry is unavailable.");
+      }
+      const api = ensureEnvironmentApi(environmentId);
+      return api.projects.deleteEntry(input as ProjectDeleteEntryInput);
+    },
+    onSuccess: (_result, variables) => {
+      invalidateTreeQueries(queryClient, environmentId, variables.cwd);
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.readFile(environmentId, variables.cwd, variables.relativePath),
+      });
     },
   });
 }

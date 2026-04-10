@@ -8,6 +8,7 @@ import { workspaceListDirectoryQueryOptions } from "~/lib/workspaceReactQuery";
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
 import { buildVisibleRows, type DirectoryListingSnapshot } from "./FileTree.logic";
+import { useFileContextMenu } from "./FileContextMenu";
 import { FileTreeNode } from "./FileTreeNode";
 
 interface FileTreeProps {
@@ -64,6 +65,8 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
   );
   const openFile = useWorkspaceStore((state) => state.openFile);
   const toggleDirectory = useWorkspaceStore((state) => state.toggleDirectory);
+
+  const handleContextMenu = useFileContextMenu({ environmentId, cwd, onSelectTab });
 
   const { rootQuery, subtreeQueries } = useDirectoryListings(
     environmentId,
@@ -155,6 +158,7 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
                 isActive={isActive}
                 gitStatus={modifiedPaths.has(row.entry.path) ? "modified" : null}
                 onClick={handleNodeClick}
+                onContextMenu={handleContextMenu}
               />
             </div>
           );

@@ -10,9 +10,16 @@ interface FileTreeNodeProps {
   readonly isActive: boolean;
   readonly gitStatus: "modified" | null;
   readonly onClick: (row: FileTreeRow, event: MouseEvent<HTMLButtonElement>) => void;
+  readonly onContextMenu?: (row: FileTreeRow, position: { x: number; y: number }) => void;
 }
 
-export function FileTreeNode({ row, isActive, gitStatus, onClick }: FileTreeNodeProps) {
+export function FileTreeNode({
+  row,
+  isActive,
+  gitStatus,
+  onClick,
+  onContextMenu,
+}: FileTreeNodeProps) {
   const { entry, depth, hasChildren, isExpanded } = row;
   const name = entry.path.split("/").pop() ?? entry.path;
   const Icon = hasChildren ? (isExpanded ? FolderOpen : Folder) : File;
@@ -28,6 +35,10 @@ export function FileTreeNode({ row, isActive, gitStatus, onClick }: FileTreeNode
       )}
       style={{ paddingLeft: `${depth * 12 + 4}px` }}
       onClick={(event) => onClick(row, event)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onContextMenu?.(row, { x: event.clientX, y: event.clientY });
+      }}
       aria-expanded={hasChildren ? isExpanded : undefined}
     >
       {hasChildren ? (

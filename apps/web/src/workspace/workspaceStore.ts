@@ -52,6 +52,9 @@ interface WorkspaceActions {
   // Layer 3
   moveTab(cwd: string, fromIndex: number, toIndex: number): void;
 
+  // Layer 4
+  renameOpenFile(cwd: string, oldRelativePath: string, newRelativePath: string): void;
+
   // Layer 2
   toggleEditMode(cwd: string, relativePath: string): void;
   setEditorContents(cwd: string, relativePath: string, contents: string): void;
@@ -177,6 +180,36 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             byCwd: {
               ...state.byCwd,
               [cwd]: { ...existing, openTabs: tabs },
+            },
+          };
+        }),
+
+      renameOpenFile: (cwd, oldRelativePath, newRelativePath) =>
+        set((state) => {
+          const existing = state.byCwd[cwd];
+          if (!existing) return state;
+          const oldTabId: WorkspaceTabId = { kind: "file", relativePath: oldRelativePath };
+          const hasTab = existing.openTabs.some((tab) => tabsEqual(tab, oldTabId));
+          if (!hasTab) return state;
+          const nextTabs = existing.openTabs.map((tab) =>
+            tabsEqual(tab, oldTabId)
+              ? ({ kind: "file", relativePath: newRelativePath } as WorkspaceTabId)
+              : tab,
+          );
+          const nextBuffers = { ...existing.fileBuffers };
+          const oldBuffer = nextBuffers[oldRelativePath];
+          if (oldBuffer) {
+            delete nextBuffers[oldRelativePath];
+            nextBuffers[newRelativePath] = oldBuffer;
+          }
+          return {
+            byCwd: {
+              ...state.byCwd,
+              [cwd]: {
+                ...existing,
+                openTabs: nextTabs,
+                fileBuffers: nextBuffers,
+              },
             },
           };
         }),

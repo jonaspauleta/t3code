@@ -463,9 +463,7 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         });
 
         expect(result).toEqual({ relativePath: "to-delete.ts" });
-        const exists = yield* fileSystem
-          .exists(path.join(cwd, "to-delete.ts"))
-          .pipe(Effect.orDie);
+        const exists = yield* fileSystem.exists(path.join(cwd, "to-delete.ts")).pipe(Effect.orDie);
         expect(exists).toBe(false);
       }),
     );
