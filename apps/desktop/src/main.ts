@@ -1760,8 +1760,11 @@ function createWindow(): BrowserWindow {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     if (!hasUnsaved) {
-      forceClose = true;
-      mainWindow.close();
+      // No unsaved changes — destroy the window immediately.
+      // We use destroy() instead of close() because close() after
+      // event.preventDefault() is unreliable in Electron — it may
+      // not re-fire the close event, leaving the window stuck open.
+      mainWindow.destroy();
       return;
     }
 
@@ -1776,9 +1779,8 @@ function createWindow(): BrowserWindow {
     });
 
     if (choice === 0) {
-      // Discard
-      forceClose = true;
-      mainWindow.close();
+      // Discard — force destroy the window
+      mainWindow.destroy();
     } else {
       // Cancel — keep the app running
       isQuitting = false;
