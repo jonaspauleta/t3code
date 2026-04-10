@@ -18,6 +18,10 @@ export function createEnvironmentApi(rpcClient: WsRpcClient): EnvironmentApi {
       writeFile: rpcClient.projects.writeFile,
       readFile: rpcClient.projects.readFile,
       listDirectory: rpcClient.projects.listDirectory,
+      createFile: rpcClient.projects.createFile,
+      createDirectory: rpcClient.projects.createDirectory,
+      renameEntry: rpcClient.projects.renameEntry,
+      deleteEntry: rpcClient.projects.deleteEntry,
       onFile: (input, callback, options) => rpcClient.projects.onFile(input, callback, options),
     },
     git: {

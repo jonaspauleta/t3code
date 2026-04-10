@@ -5,8 +5,12 @@ import { Effect, FileSystem, Layer, Option, Path, PlatformError, Stream } from "
 import {
   PROJECT_READ_FILE_MAX_BYTES,
   type ProjectFileEvent,
+  ProjectCreateDirectoryError,
+  ProjectCreateFileError,
+  ProjectDeleteEntryError,
   ProjectReadFileError,
   type ProjectReadFileResult,
+  ProjectRenameEntryError,
   ProjectSubscribeFileError,
 } from "@t3tools/contracts";
 
@@ -312,7 +316,151 @@ export const makeWorkspaceFileSystem = Effect.gen(function* () {
       return result;
     },
   );
-  return { writeFile, readFile, subscribeFile } satisfies WorkspaceFileSystemShape;
+  const createFile: WorkspaceFileSystemShape["createFile"] = Effect.fn(
+    "WorkspaceFileSystem.createFile",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+
+    // Check if file already exists when overwrite is not set.
+    if (!input.overwrite) {
+      const exists = yield* fileSystem.exists(target.absolutePath).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectCreateFileError({
+              message: `Failed to check file existence: ${cause.message}`,
+              cause,
+            }),
+        ),
+      );
+      if (exists) {
+        return yield* new ProjectCreateFileError({
+          message: `File already exists: ${input.relativePath}`,
+        });
+      }
+    }
+
+    yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectCreateFileError({
+            message: `Failed to create parent directories: ${cause.message}`,
+            cause,
+          }),
+      ),
+    );
+
+    yield* fileSystem.writeFileString(target.absolutePath, input.contents ?? "").pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectCreateFileError({
+            message: `Failed to write file: ${cause.message}`,
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.invalidate(input.cwd);
+    return { relativePath: target.relativePath };
+  });
+
+  const createDirectory: WorkspaceFileSystemShape["createDirectory"] = Effect.fn(
+    "WorkspaceFileSystem.createDirectory",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+
+    yield* fileSystem.makeDirectory(target.absolutePath, { recursive: true }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectCreateDirectoryError({
+            message: `Failed to create directory: ${cause.message}`,
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.invalidate(input.cwd);
+    return { relativePath: target.relativePath };
+  });
+
+  const renameEntry: WorkspaceFileSystemShape["renameEntry"] = Effect.fn(
+    "WorkspaceFileSystem.renameEntry",
+  )(function* (input) {
+    const source = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+    const destination = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.nextRelativePath,
+    });
+
+    // Ensure parent directory of destination exists.
+    yield* fileSystem
+      .makeDirectory(path.dirname(destination.absolutePath), { recursive: true })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectRenameEntryError({
+              message: `Failed to create parent directories for rename destination: ${cause.message}`,
+              cause,
+            }),
+        ),
+      );
+
+    yield* fileSystem.rename(source.absolutePath, destination.absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectRenameEntryError({
+            message: `Failed to rename entry: ${cause.message}`,
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.invalidate(input.cwd);
+    return {
+      previousRelativePath: source.relativePath,
+      relativePath: destination.relativePath,
+    };
+  });
+
+  const deleteEntry: WorkspaceFileSystemShape["deleteEntry"] = Effect.fn(
+    "WorkspaceFileSystem.deleteEntry",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+
+    yield* fileSystem.remove(target.absolutePath, { recursive: input.recursive ?? false }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectDeleteEntryError({
+            message: `Failed to delete entry: ${cause.message}`,
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.invalidate(input.cwd);
+    return { relativePath: target.relativePath };
+  });
+
+  return {
+    writeFile,
+    readFile,
+    subscribeFile,
+    createFile,
+    createDirectory,
+    renameEntry,
+    deleteEntry,
+  } satisfies WorkspaceFileSystemShape;
 });
 
 export const WorkspaceFileSystemLive = Layer.effect(WorkspaceFileSystem, makeWorkspaceFileSystem);

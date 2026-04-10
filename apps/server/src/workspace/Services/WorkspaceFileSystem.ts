@@ -10,14 +10,29 @@ import { Schema, ServiceMap } from "effect";
 import type { Effect, Stream } from "effect";
 
 import type {
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteEntryInput,
+  ProjectDeleteEntryResult,
   ProjectFileEvent,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameEntryInput,
+  ProjectRenameEntryResult,
   ProjectSubscribeFileInput,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "@t3tools/contracts";
-import { ProjectReadFileError, ProjectSubscribeFileError } from "@t3tools/contracts";
+import {
+  ProjectCreateDirectoryError,
+  ProjectCreateFileError,
+  ProjectDeleteEntryError,
+  ProjectReadFileError,
+  ProjectRenameEntryError,
+  ProjectSubscribeFileError,
+} from "@t3tools/contracts";
 import { WorkspacePathOutsideRootError } from "./WorkspacePaths.ts";
 
 export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceFileSystemError>()(
@@ -76,6 +91,56 @@ export interface WorkspaceFileSystemShape {
   readonly subscribeFile: (
     input: ProjectSubscribeFileInput,
   ) => Stream.Stream<ProjectFileEvent, ProjectSubscribeFileError | WorkspacePathOutsideRootError>;
+
+  /**
+   * Create a new file relative to the workspace root.
+   *
+   * Creates parent directories as needed. When `overwrite` is false (default),
+   * fails if the file already exists.
+   */
+  readonly createFile: (
+    input: ProjectCreateFileInput,
+  ) => Effect.Effect<
+    ProjectCreateFileResult,
+    ProjectCreateFileError | WorkspacePathOutsideRootError
+  >;
+
+  /**
+   * Create a new directory relative to the workspace root.
+   *
+   * Creates parent directories as needed (recursive).
+   */
+  readonly createDirectory: (
+    input: ProjectCreateDirectoryInput,
+  ) => Effect.Effect<
+    ProjectCreateDirectoryResult,
+    ProjectCreateDirectoryError | WorkspacePathOutsideRootError
+  >;
+
+  /**
+   * Rename (move) a file or directory within the workspace root.
+   *
+   * Uses `fs.rename` for atomic same-filesystem moves.
+   */
+  readonly renameEntry: (
+    input: ProjectRenameEntryInput,
+  ) => Effect.Effect<
+    ProjectRenameEntryResult,
+    ProjectRenameEntryError | WorkspacePathOutsideRootError
+  >;
+
+  /**
+   * Delete a file or directory relative to the workspace root.
+   *
+   * When `recursive` is true, non-empty directories are removed. Otherwise,
+   * deleting a non-empty directory will fail.
+   */
+  readonly deleteEntry: (
+    input: ProjectDeleteEntryInput,
+  ) => Effect.Effect<
+    ProjectDeleteEntryResult,
+    ProjectDeleteEntryError | WorkspacePathOutsideRootError
+  >;
 }
 
 /**

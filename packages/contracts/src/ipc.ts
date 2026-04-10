@@ -19,11 +19,19 @@ import type {
   GitCreateBranchResult,
 } from "./git";
 import type {
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteEntryInput,
+  ProjectDeleteEntryResult,
   ProjectFileEvent,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameEntryInput,
+  ProjectRenameEntryResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectSubscribeFileInput,
@@ -193,6 +201,10 @@ export interface EnvironmentApi {
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
+    createFile: (input: ProjectCreateFileInput) => Promise<ProjectCreateFileResult>;
+    createDirectory: (input: ProjectCreateDirectoryInput) => Promise<ProjectCreateDirectoryResult>;
+    renameEntry: (input: ProjectRenameEntryInput) => Promise<ProjectRenameEntryResult>;
+    deleteEntry: (input: ProjectDeleteEntryInput) => Promise<ProjectDeleteEntryResult>;
     onFile: (
       input: ProjectSubscribeFileInput,
       callback: (event: ProjectFileEvent) => void,

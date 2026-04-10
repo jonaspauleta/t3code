@@ -67,6 +67,10 @@ export interface WsRpcClient {
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
     readonly readFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadFile>;
     readonly listDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsListDirectory>;
+    readonly createFile: RpcUnaryMethod<typeof WS_METHODS.projectsCreateFile>;
+    readonly createDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsCreateDirectory>;
+    readonly renameEntry: RpcUnaryMethod<typeof WS_METHODS.projectsRenameEntry>;
+    readonly deleteEntry: RpcUnaryMethod<typeof WS_METHODS.projectsDeleteEntry>;
     readonly onFile: (
       input: RpcInput<typeof WS_METHODS.subscribeProjectFile>,
       listener: (event: ProjectFileEvent) => void,
@@ -303,6 +307,14 @@ export function createWsRpcClient(
         transport.request((client) => client[WS_METHODS.projectsReadFile](input)),
       listDirectory: (input) =>
         transport.request((client) => client[WS_METHODS.projectsListDirectory](input)),
+      createFile: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsCreateFile](input)),
+      createDirectory: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsCreateDirectory](input)),
+      renameEntry: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsRenameEntry](input)),
+      deleteEntry: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsDeleteEntry](input)),
       onFile: (input, listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.subscribeProjectFile](input),

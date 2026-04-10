@@ -11,8 +11,12 @@ import {
   OrchestrationGetSnapshotError,
   OrchestrationGetTurnDiffError,
   ORCHESTRATION_WS_METHODS,
+  ProjectCreateDirectoryError,
+  ProjectCreateFileError,
+  ProjectDeleteEntryError,
   ProjectListDirectoryError,
   ProjectReadFileError,
+  ProjectRenameEntryError,
   ProjectSubscribeFileError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
@@ -655,6 +659,82 @@ const WsRpcLayer = WsRpcGroup.toLayer(
               }
               return new ProjectListDirectoryError({
                 message: `Failed to list workspace directory: ${cause.detail}`,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsCreateFile]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsCreateFile,
+          workspaceFileSystem.createFile(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectCreateFileError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectCreateFileError({
+                message: "Failed to create workspace file",
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsCreateDirectory]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsCreateDirectory,
+          workspaceFileSystem.createDirectory(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectCreateDirectoryError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectCreateDirectoryError({
+                message: "Failed to create workspace directory",
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsRenameEntry]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsRenameEntry,
+          workspaceFileSystem.renameEntry(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectRenameEntryError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectRenameEntryError({
+                message: "Failed to rename workspace entry",
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsDeleteEntry]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsDeleteEntry,
+          workspaceFileSystem.deleteEntry(input).pipe(
+            Effect.mapError((cause) => {
+              if (Schema.is(WorkspacePathOutsideRootError)(cause)) {
+                return new ProjectDeleteEntryError({
+                  message: "Workspace file path must stay within the project root.",
+                  cause,
+                });
+              }
+              return new ProjectDeleteEntryError({
+                message: "Failed to delete workspace entry",
                 cause,
               });
             }),

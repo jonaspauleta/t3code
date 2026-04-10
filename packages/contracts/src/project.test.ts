@@ -2,15 +2,31 @@ import { describe, expect, it } from "vitest";
 import { Schema } from "effect";
 
 import {
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteEntryInput,
+  ProjectDeleteEntryResult,
   ProjectFileEvent,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameEntryInput,
+  ProjectRenameEntryResult,
   ProjectSubscribeFileInput,
   PROJECT_READ_FILE_MAX_BYTES,
 } from "./project";
 
+const decodeCreateFileInput = Schema.decodeUnknownSync(ProjectCreateFileInput);
+const decodeCreateFileResult = Schema.decodeUnknownSync(ProjectCreateFileResult);
+const decodeCreateDirectoryInput = Schema.decodeUnknownSync(ProjectCreateDirectoryInput);
+const decodeCreateDirectoryResult = Schema.decodeUnknownSync(ProjectCreateDirectoryResult);
+const decodeRenameEntryInput = Schema.decodeUnknownSync(ProjectRenameEntryInput);
+const decodeRenameEntryResult = Schema.decodeUnknownSync(ProjectRenameEntryResult);
+const decodeDeleteEntryInput = Schema.decodeUnknownSync(ProjectDeleteEntryInput);
+const decodeDeleteEntryResult = Schema.decodeUnknownSync(ProjectDeleteEntryResult);
 const decodeReadFileInput = Schema.decodeUnknownSync(ProjectReadFileInput);
 const decodeReadFileResult = Schema.decodeUnknownSync(ProjectReadFileResult);
 const decodeListDirectoryInput = Schema.decodeUnknownSync(ProjectListDirectoryInput);
@@ -142,5 +158,127 @@ describe("ProjectFileEvent", () => {
 
   it("rejects an unknown tag", () => {
     expect(() => decodeFileEvent({ _tag: "mystery", sha256: "x", size: 0 })).toThrow();
+  });
+});
+
+describe("ProjectCreateFileInput", () => {
+  it("accepts a cwd and relativePath with optional contents and overwrite", () => {
+    const parsed = decodeCreateFileInput({
+      cwd: "/repo",
+      relativePath: "src/new-file.ts",
+      contents: "hello",
+      overwrite: true,
+    });
+    expect(parsed.cwd).toBe("/repo");
+    expect(parsed.relativePath).toBe("src/new-file.ts");
+    expect(parsed.contents).toBe("hello");
+    expect(parsed.overwrite).toBe(true);
+  });
+
+  it("accepts without optional fields", () => {
+    const parsed = decodeCreateFileInput({
+      cwd: "/repo",
+      relativePath: "src/new-file.ts",
+    });
+    expect(parsed.contents).toBeUndefined();
+    expect(parsed.overwrite).toBeUndefined();
+  });
+
+  it("rejects blank relativePath", () => {
+    expect(() => decodeCreateFileInput({ cwd: "/repo", relativePath: "" })).toThrow();
+  });
+});
+
+describe("ProjectCreateFileResult", () => {
+  it("decodes a result", () => {
+    const parsed = decodeCreateFileResult({ relativePath: "src/new-file.ts" });
+    expect(parsed.relativePath).toBe("src/new-file.ts");
+  });
+});
+
+describe("ProjectCreateDirectoryInput", () => {
+  it("accepts a cwd and relativePath", () => {
+    const parsed = decodeCreateDirectoryInput({
+      cwd: "/repo",
+      relativePath: "src/new-dir",
+    });
+    expect(parsed.relativePath).toBe("src/new-dir");
+  });
+
+  it("rejects blank relativePath", () => {
+    expect(() => decodeCreateDirectoryInput({ cwd: "/repo", relativePath: "" })).toThrow();
+  });
+});
+
+describe("ProjectCreateDirectoryResult", () => {
+  it("decodes a result", () => {
+    const parsed = decodeCreateDirectoryResult({ relativePath: "src/new-dir" });
+    expect(parsed.relativePath).toBe("src/new-dir");
+  });
+});
+
+describe("ProjectRenameEntryInput", () => {
+  it("accepts cwd, relativePath, and nextRelativePath", () => {
+    const parsed = decodeRenameEntryInput({
+      cwd: "/repo",
+      relativePath: "src/old.ts",
+      nextRelativePath: "src/new.ts",
+    });
+    expect(parsed.relativePath).toBe("src/old.ts");
+    expect(parsed.nextRelativePath).toBe("src/new.ts");
+  });
+
+  it("rejects blank relativePath", () => {
+    expect(() =>
+      decodeRenameEntryInput({ cwd: "/repo", relativePath: "", nextRelativePath: "a.ts" }),
+    ).toThrow();
+  });
+
+  it("rejects blank nextRelativePath", () => {
+    expect(() =>
+      decodeRenameEntryInput({ cwd: "/repo", relativePath: "a.ts", nextRelativePath: "" }),
+    ).toThrow();
+  });
+});
+
+describe("ProjectRenameEntryResult", () => {
+  it("decodes a result", () => {
+    const parsed = decodeRenameEntryResult({
+      previousRelativePath: "src/old.ts",
+      relativePath: "src/new.ts",
+    });
+    expect(parsed.previousRelativePath).toBe("src/old.ts");
+    expect(parsed.relativePath).toBe("src/new.ts");
+  });
+});
+
+describe("ProjectDeleteEntryInput", () => {
+  it("accepts cwd and relativePath with optional recursive", () => {
+    const parsed = decodeDeleteEntryInput({
+      cwd: "/repo",
+      relativePath: "src/old-dir",
+      recursive: true,
+    });
+    expect(parsed.relativePath).toBe("src/old-dir");
+    expect(parsed.recursive).toBe(true);
+  });
+
+  it("accepts without recursive", () => {
+    const parsed = decodeDeleteEntryInput({
+      cwd: "/repo",
+      relativePath: "src/file.ts",
+    });
+    expect(parsed.recursive).toBeUndefined();
+  });
+
+  it("rejects blank relativePath", () => {
+    expect(() => decodeDeleteEntryInput({ cwd: "/repo", relativePath: "" })).toThrow();
+  });
+});
+
+describe("ProjectDeleteEntryResult", () => {
+  it("decodes a result", () => {
+    const parsed = decodeDeleteEntryResult({ relativePath: "src/file.ts" });
+    expect(parsed.relativePath).toBe("src/file.ts");
   });
 });
