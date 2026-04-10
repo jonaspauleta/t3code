@@ -1737,6 +1737,17 @@ function createWindow(): BrowserWindow {
     void window.loadURL(resolveDesktopWindowUrl());
   }
 
+  // When the renderer's beforeunload handler prevents the close (unsaved
+  // changes dialog), reset the isQuitting flag so the app continues
+  // running normally. Without this, Cmd+Q with unsaved changes would
+  // leave the app in a half-quit state.
+  window.webContents.on("will-prevent-unload", () => {
+    if (isQuitting) {
+      isQuitting = false;
+      writeDesktopLogHeader("quit cancelled by beforeunload — unsaved changes");
+    }
+  });
+
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -1833,13 +1844,15 @@ async function bootstrap(): Promise<void> {
 }
 
 app.on("before-quit", () => {
+  if (isQuitting) return;
   isQuitting = true;
   updateInstallInFlight = false;
   writeDesktopLogHeader("before-quit received");
   clearUpdatePollTimer();
-  cancelBackendReadinessWait();
-  stopBackend();
-  restoreStdIoCapture?.();
+  // Don't stop the backend here — the renderer's beforeunload handler
+  // may show an unsaved-changes dialog. If the user cancels, the
+  // will-prevent-unload handler on the webContents resets isQuitting so
+  // the app keeps running. Cleanup happens in window-all-closed.
 });
 
 app
@@ -1871,6 +1884,14 @@ app
   });
 
 app.on("window-all-closed", () => {
+  if (isQuitting) {
+    // The user confirmed the quit (or had no unsaved changes). Tear
+    // down the backend now that every window has closed.
+    cancelBackendReadinessWait();
+    stopBackend();
+    restoreStdIoCapture?.();
+  }
+
   if (process.platform !== "darwin" && !isQuitting) {
     app.quit();
   }

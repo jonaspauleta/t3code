@@ -7,7 +7,11 @@ import { useGitStatus } from "~/lib/gitStatusState";
 import { workspaceListDirectoryQueryOptions } from "~/lib/workspaceReactQuery";
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
-import { buildVisibleRows, type DirectoryListingSnapshot, type FileTreeRow } from "./FileTree.logic";
+import {
+  buildVisibleRows,
+  type DirectoryListingSnapshot,
+  type FileTreeRow,
+} from "./FileTree.logic";
 import { useFileContextMenu } from "./FileContextMenu";
 import { FileTreeNode } from "./FileTreeNode";
 
