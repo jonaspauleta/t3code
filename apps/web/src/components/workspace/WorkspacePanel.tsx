@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { Suspense, lazy, useCallback, useMemo } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
 
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
 import { cn } from "~/lib/utils";
@@ -92,6 +92,22 @@ export function WorkspacePanel({
     },
     [activeTab, closeTab, cwd, dirtyPaths, onSelectTab],
   );
+
+  // Cmd+W / Ctrl+W closes the active file tab. Does nothing if the active
+  // tab is Changes or Files (system tabs). Uses the same handleClose logic
+  // that the × button uses, so dirty-file confirmation is preserved.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const isCloseTab =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "w" && !event.shiftKey;
+      if (!isCloseTab) return;
+      if (activeTab.kind !== "file") return;
+      event.preventDefault();
+      handleClose(activeTab);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeTab, handleClose]);
 
   return (
     <div className={cn("flex h-full min-h-0 w-full flex-col bg-background")}>

@@ -62,6 +62,13 @@ export function WorkspacePanelTabs({
               isActive ? "border-border bg-background text-foreground" : "text-muted-foreground",
             )}
             onClick={() => onSelect(tab)}
+            onAuxClick={(event) => {
+              // Middle-click (button 1) closes file tabs.
+              if (event.button === 1 && canClose) {
+                event.preventDefault();
+                onClose(tab);
+              }
+            }}
             title={tab.kind === "file" ? tab.relativePath : undefined}
           >
             {isDirty ? (
