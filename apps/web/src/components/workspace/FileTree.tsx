@@ -172,12 +172,17 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
 
   return (
     <>
-      <div ref={scrollParentRef} className="h-full min-h-0 overflow-y-auto">
+      <div
+        ref={scrollParentRef}
+        className="h-full min-h-0 overflow-y-auto"
+        style={{ contain: "strict" }}
+      >
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             position: "relative",
             width: "100%",
+            transition: "height 100ms ease-out",
           }}
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
