@@ -1,4 +1,4 @@
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -24,12 +24,12 @@ const editorTheme = EditorView.theme({
     height: "100%",
     backgroundColor: "var(--background)",
     color: "var(--foreground)",
-    fontSize: "12px",
+    fontSize: "13px",
   },
   ".cm-scroller": {
     overflow: "auto",
-    fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
-    lineHeight: "1.5",
+    fontFamily: '"SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+    lineHeight: "1.6",
   },
   ".cm-content": {
     caretColor: "var(--foreground)",
@@ -39,7 +39,7 @@ const editorTheme = EditorView.theme({
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     {
-      backgroundColor: "color-mix(in srgb, var(--accent) 35%, transparent)",
+      backgroundColor: "color-mix(in srgb, var(--accent) 60%, transparent)",
     },
   ".cm-gutters": {
     backgroundColor: "color-mix(in srgb, var(--muted) 30%, transparent)",
@@ -143,9 +143,10 @@ export function FileViewer({
       bracketMatching(),
       highlightActiveLine(),
       highlightSelectionMatches(),
+      history(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       search({ top: true }),
-      keymap.of(defaultKeymap),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
       readOnlyCompartment.of(readOnlyExtensions(isEditMode)),
       wordWrapCompartment.of(wordWrapExtensions(wordWrap)),
       languageCompartment.of(languageExtensions(languageExtension)),

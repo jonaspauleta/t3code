@@ -68,7 +68,7 @@ function SortableFileTab({
       aria-selected={isActive}
       type="button"
       className={cn(
-        "group flex items-center gap-1 rounded-t-sm border border-b-0 border-transparent px-2 py-1 text-[11px]",
+        "group flex items-center gap-1.5 rounded-t-sm border border-b-0 border-transparent px-3 py-2 text-xs",
         "hover:bg-background",
         isActive ? "border-border bg-background text-foreground" : "text-muted-foreground",
         isDragging ? "z-20 opacity-80" : "",
@@ -119,7 +119,7 @@ function SystemTab({
       aria-selected={isActive}
       type="button"
       className={cn(
-        "group flex items-center gap-1 rounded-t-sm border border-b-0 border-transparent px-2 py-1 text-[11px]",
+        "group flex items-center gap-1.5 rounded-t-sm border border-b-0 border-transparent px-3 py-2 text-xs",
         "hover:bg-background",
         isActive ? "border-border bg-background text-foreground" : "text-muted-foreground",
       )}
@@ -147,7 +147,7 @@ export function WorkspacePanelTabs({
   return (
     <div
       role="tablist"
-      className="flex shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-muted/20 px-1"
+      className="flex h-[52px] shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border bg-muted/20 px-2"
     >
       {/* Pinned system tabs */}
       {systemTabs.map((tab) => (
