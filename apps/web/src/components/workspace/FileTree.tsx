@@ -3,6 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useMemo, useRef } from "react";
 
+import { useGitStatus } from "~/lib/gitStatusState";
 import { workspaceListDirectoryQueryOptions } from "~/lib/workspaceReactQuery";
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
@@ -18,11 +19,11 @@ interface FileTreeProps {
 
 const ROW_HEIGHT = 22;
 
-// Stable empty-array references — used as the fallback inside zustand
-// selectors so cwds without a store entry return the SAME reference every
-// render. Without this, the selector would produce a fresh `[]` on every
-// render and trigger "Maximum update depth exceeded" in React.
+// Stable empty references — used as fallbacks so zustand selectors and
+// useMemo derivations return the SAME reference every render, avoiding
+// React infinite re-render loops.
 const EMPTY_EXPANDED_DIRECTORIES: ReadonlyArray<string> = [];
+const EMPTY_MODIFIED_PATHS: ReadonlySet<string> = new Set();
 
 /**
  * Custom hook: fetches listings for the workspace root plus every currently
@@ -46,6 +47,14 @@ function useDirectoryListings(
 }
 
 export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTreeProps) {
+  // Git status for the working tree — gives us the set of modified file paths.
+  const gitStatus = useGitStatus({ environmentId, cwd });
+  const modifiedPaths = useMemo(() => {
+    const files = gitStatus.data?.workingTree?.files;
+    if (!files || files.length === 0) return EMPTY_MODIFIED_PATHS;
+    return new Set(files.map((f) => f.path));
+  }, [gitStatus.data?.workingTree?.files]);
+
   const expandedDirectoriesList = useWorkspaceStore(
     (state) => state.byCwd[cwd]?.expandedDirectories ?? EMPTY_EXPANDED_DIRECTORIES,
   );
@@ -141,7 +150,12 @@ export function FileTree({ environmentId, cwd, activeTab, onSelectTab }: FileTre
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <FileTreeNode row={row} isActive={isActive} onClick={handleNodeClick} />
+              <FileTreeNode
+                row={row}
+                isActive={isActive}
+                gitStatus={modifiedPaths.has(row.entry.path) ? "modified" : null}
+                onClick={handleNodeClick}
+              />
             </div>
           );
         })}
