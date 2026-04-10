@@ -6,7 +6,7 @@
  *
  * @module WorkspaceTree
  */
-import { Schema, ServiceMap } from "effect";
+import { Schema, Context } from "effect";
 import type { Effect } from "effect";
 
 import type { ProjectListDirectoryInput, ProjectListDirectoryResult } from "@t3tools/contracts";
@@ -48,6 +48,6 @@ export interface WorkspaceTreeShape {
 /**
  * WorkspaceTree - Service tag for per-directory workspace listing.
  */
-export class WorkspaceTree extends ServiceMap.Service<WorkspaceTree, WorkspaceTreeShape>()(
+export class WorkspaceTree extends Context.Service<WorkspaceTree, WorkspaceTreeShape>()(
   "t3/workspace/Services/WorkspaceTree",
 ) {}
