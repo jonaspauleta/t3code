@@ -1,7 +1,7 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import {
+  HighlightStyle,
   bracketMatching,
-  defaultHighlightStyle,
   foldGutter,
   indentOnInput,
   syntaxHighlighting,
@@ -9,15 +9,98 @@ import {
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
+import { tags as t } from "@lezer/highlight";
 import { useEffect, useRef, useState } from "react";
+
+import { useTheme } from "~/hooks/useTheme";
 
 import { resolveLanguage } from "./resolveLanguage";
 
 // Chrome colors (background, gutters, selection, etc.) come from t3code's
 // CSS vars via the EditorView.theme below, so they auto-adapt to the
-// current light/dark theme. Syntax colors use CodeMirror's
-// `defaultHighlightStyle`, which is legible on both light and dark
-// backgrounds. A proper theme-aware HighlightStyle is future work.
+// current light/dark theme. Syntax colors use pierre-dark / pierre-light
+// HighlightStyles extracted from @pierre/theme, matching the diff panel's
+// Shiki themes.
+
+const pierreDarkHighlightStyle = HighlightStyle.define([
+  { tag: [t.comment, t.lineComment, t.blockComment], color: "#84848A" },
+  { tag: [t.string, t.special(t.string)], color: "#5ecc71" },
+  { tag: [t.number, t.bool], color: "#68cdf2" },
+  { tag: [t.atom, t.constant(t.name)], color: "#ffd452" },
+  { tag: t.keyword, color: "#ff678d" },
+  { tag: [t.variableName, t.definition(t.variableName)], color: "#ffa359" },
+  { tag: [t.self, t.special(t.variableName)], color: "#ffca00" },
+  {
+    tag: [t.function(t.variableName), t.function(t.definition(t.variableName))],
+    color: "#9d6afb",
+  },
+  { tag: [t.typeName, t.className, t.namespace], color: "#d568ea" },
+  { tag: t.operator, color: "#79797F" },
+  {
+    tag: [
+      t.operatorKeyword,
+      t.logicOperator,
+      t.compareOperator,
+      t.arithmeticOperator,
+      t.bitwiseOperator,
+    ],
+    color: "#08c0ef",
+  },
+  { tag: [t.punctuation, t.bracket, t.separator, t.paren, t.squareBracket], color: "#79797F" },
+  { tag: t.tagName, color: "#ff6762" },
+  { tag: t.attributeName, color: "#61d5c0" },
+  { tag: t.escape, color: "#68cdf2" },
+  { tag: t.regexp, color: "#64d1db" },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: "#ffa359" },
+  { tag: t.heading, color: "#ff6762", fontWeight: "bold" },
+  { tag: t.strong, color: "#ffd452", fontWeight: "bold" },
+  { tag: t.emphasis, color: "#ff678d", fontStyle: "italic" },
+  { tag: t.link, color: "#ff678d", textDecoration: "underline" },
+  { tag: [t.processingInstruction, t.inserted], color: "#5ecc71" },
+  { tag: t.deleted, color: "#ff2e3f" },
+  { tag: t.invalid, color: "#f44747" },
+  { tag: t.meta, color: "#79797F" },
+]);
+
+const pierreLightHighlightStyle = HighlightStyle.define([
+  { tag: [t.comment, t.lineComment, t.blockComment], color: "#84848A" },
+  { tag: [t.string, t.special(t.string)], color: "#199f43" },
+  { tag: [t.number, t.bool], color: "#1ca1c7" },
+  { tag: [t.atom, t.constant(t.name)], color: "#d5a910" },
+  { tag: t.keyword, color: "#fc2b73" },
+  { tag: [t.variableName, t.definition(t.variableName)], color: "#d47628" },
+  { tag: [t.self, t.special(t.variableName)], color: "#d5a910" },
+  {
+    tag: [t.function(t.variableName), t.function(t.definition(t.variableName))],
+    color: "#7b43f8",
+  },
+  { tag: [t.typeName, t.className, t.namespace], color: "#c635e4" },
+  { tag: t.operator, color: "#79797F" },
+  {
+    tag: [
+      t.operatorKeyword,
+      t.logicOperator,
+      t.compareOperator,
+      t.arithmeticOperator,
+      t.bitwiseOperator,
+    ],
+    color: "#08c0ef",
+  },
+  { tag: [t.punctuation, t.bracket, t.separator, t.paren, t.squareBracket], color: "#79797F" },
+  { tag: t.tagName, color: "#d52c36" },
+  { tag: t.attributeName, color: "#61d5c0" },
+  { tag: t.escape, color: "#1ca1c7" },
+  { tag: t.regexp, color: "#1ca1c7" },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: "#d47628" },
+  { tag: t.heading, color: "#d52c36", fontWeight: "bold" },
+  { tag: t.strong, color: "#d5a910", fontWeight: "bold" },
+  { tag: t.emphasis, color: "#fc2b73", fontStyle: "italic" },
+  { tag: t.link, color: "#fc2b73", textDecoration: "underline" },
+  { tag: [t.processingInstruction, t.inserted], color: "#199f43" },
+  { tag: t.deleted, color: "#d52c36" },
+  { tag: t.invalid, color: "#f44747" },
+  { tag: t.meta, color: "#79797F" },
+]);
 
 const editorTheme = EditorView.theme({
   "&": {
@@ -104,6 +187,9 @@ export function FileViewer({
   const readOnlyCompartmentRef = useRef<Compartment>(new Compartment());
   const wordWrapCompartmentRef = useRef<Compartment>(new Compartment());
   const languageCompartmentRef = useRef<Compartment>(new Compartment());
+  const highlightCompartmentRef = useRef<Compartment>(new Compartment());
+
+  const { resolvedTheme } = useTheme();
 
   // Callback refs so the updateListener (captured once at editor creation)
   // always calls the latest callback from the parent without re-creating the editor.
@@ -135,6 +221,7 @@ export function FileViewer({
     const readOnlyCompartment = readOnlyCompartmentRef.current;
     const wordWrapCompartment = wordWrapCompartmentRef.current;
     const languageCompartment = languageCompartmentRef.current;
+    const highlightCompartment = highlightCompartmentRef.current;
 
     const extensions: Extension[] = [
       lineNumbers(),
@@ -144,7 +231,12 @@ export function FileViewer({
       highlightActiveLine(),
       highlightSelectionMatches(),
       history(),
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      highlightCompartment.of([
+        syntaxHighlighting(
+          resolvedTheme === "dark" ? pierreDarkHighlightStyle : pierreLightHighlightStyle,
+          { fallback: true },
+        ),
+      ]),
       search({ top: true }),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       readOnlyCompartment.of(readOnlyExtensions(isEditMode)),
@@ -180,7 +272,8 @@ export function FileViewer({
       viewRef.current = null;
     };
     // Intentionally only re-create on file change. Content / mode / wordWrap /
-    // language updates flow through the compartment-reconfigure effects below.
+    // language / resolvedTheme updates flow through the compartment-reconfigure
+    // effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relativePath]);
 
@@ -225,6 +318,20 @@ export function FileViewer({
       effects: languageCompartmentRef.current.reconfigure(languageExtensions(languageExtension)),
     });
   }, [languageExtension]);
+
+  // Reconfigure the highlight compartment when the theme changes.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: highlightCompartmentRef.current.reconfigure([
+        syntaxHighlighting(
+          resolvedTheme === "dark" ? pierreDarkHighlightStyle : pierreLightHighlightStyle,
+          { fallback: true },
+        ),
+      ]),
+    });
+  }, [resolvedTheme]);
 
   return <div ref={hostRef} className="h-full min-h-0 w-full" />;
 }
