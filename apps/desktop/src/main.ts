@@ -91,6 +91,8 @@ const SET_SAVED_ENVIRONMENT_SECRET_CHANNEL = "desktop:set-saved-environment-secr
 const REMOVE_SAVED_ENVIRONMENT_SECRET_CHANNEL = "desktop:remove-saved-environment-secret";
 const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
+const CHECK_UNSAVED_CHANNEL = "desktop:check-unsaved";
+const UNSAVED_RESPONSE_CHANNEL = "desktop:unsaved-response";
 const BASE_DIR = process.env.T3CODE_HOME?.trim() || Path.join(OS.homedir(), ".t3");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SETTINGS_PATH = Path.join(STATE_DIR, "desktop-settings.json");
@@ -136,6 +138,7 @@ let backendReadinessAbortController: AbortController | null = null;
 let restartAttempt = 0;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
+let forceClose = false;
 let desktopProtocolRegistered = false;
 let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
@@ -1649,6 +1652,12 @@ function getInitialWindowBackgroundColor(): string {
 }
 
 function createWindow(): BrowserWindow {
+  forceClose = false;
+
+  // Remove previous unsaved-response listener from any prior window so we
+  // don't accumulate duplicate handlers across activate/reopen cycles.
+  ipcMain.removeAllListeners(UNSAVED_RESPONSE_CHANNEL);
+
   const window = new BrowserWindow({
     width: 1100,
     height: 780,
@@ -1737,6 +1746,46 @@ function createWindow(): BrowserWindow {
     void window.loadURL(resolveDesktopWindowUrl());
   }
 
+  // Intercept window close to check for unsaved changes via IPC.
+  // The main process always prevents the initial close, asks the renderer
+  // whether it has unsaved changes, and either force-closes or shows a
+  // native confirmation dialog.
+  window.on("close", (event) => {
+    if (forceClose) return; // Already confirmed — let the close proceed
+    event.preventDefault();
+    window.webContents.send(CHECK_UNSAVED_CHANNEL);
+  });
+
+  ipcMain.on(UNSAVED_RESPONSE_CHANNEL, (_event, hasUnsaved: boolean) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    if (!hasUnsaved) {
+      forceClose = true;
+      mainWindow.close();
+      return;
+    }
+
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: "warning",
+      buttons: ["Discard and Quit", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      message: "You have unsaved changes",
+      detail:
+        "Your workspace editor has unsaved changes. They will be lost if you quit without saving.",
+    });
+
+    if (choice === 0) {
+      // Discard
+      forceClose = true;
+      mainWindow.close();
+    } else {
+      // Cancel — keep the app running
+      isQuitting = false;
+      forceClose = false;
+    }
+  });
+
   // When the renderer's beforeunload handler prevents the close (unsaved
   // changes dialog), reset the isQuitting flag so the app continues
   // running normally. Without this, Cmd+Q with unsaved changes would
@@ -1744,6 +1793,7 @@ function createWindow(): BrowserWindow {
   window.webContents.on("will-prevent-unload", () => {
     if (isQuitting) {
       isQuitting = false;
+      forceClose = false;
       writeDesktopLogHeader("quit cancelled by beforeunload — unsaved changes");
     }
   });

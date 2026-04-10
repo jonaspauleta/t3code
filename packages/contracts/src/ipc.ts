@@ -171,6 +171,8 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  /** Register a callback that the main process can invoke to check for unsaved changes. */
+  onCheckUnsavedChanges: (handler: () => boolean) => () => void;
 }
 
 /**
