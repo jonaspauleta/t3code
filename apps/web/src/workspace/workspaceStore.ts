@@ -49,6 +49,9 @@ interface WorkspaceActions {
   setFileBuffer(cwd: string, relativePath: string, buffer: FileBuffer): void;
   toggleDirectory(cwd: string, relativePath: string): void;
 
+  // Layer 3
+  moveTab(cwd: string, fromIndex: number, toIndex: number): void;
+
   // Layer 2
   toggleEditMode(cwd: string, relativePath: string): void;
   setEditorContents(cwd: string, relativePath: string, contents: string): void;
@@ -159,6 +162,21 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
                 openTabs: nextTabs,
                 fileBuffers: nextBuffers,
               },
+            },
+          };
+        }),
+
+      moveTab: (cwd, fromIndex, toIndex) =>
+        set((state) => {
+          const existing = getOrInit(state.byCwd, cwd);
+          const tabs = [...existing.openTabs];
+          const [moved] = tabs.splice(fromIndex, 1);
+          if (!moved) return state;
+          tabs.splice(toIndex, 0, moved);
+          return {
+            byCwd: {
+              ...state.byCwd,
+              [cwd]: { ...existing, openTabs: tabs },
             },
           };
         }),

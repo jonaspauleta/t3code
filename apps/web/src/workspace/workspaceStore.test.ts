@@ -71,6 +71,30 @@ describe("workspaceStore", () => {
     });
   });
 
+  describe("moveTab", () => {
+    it("moves a tab from one index to another", () => {
+      const store = useWorkspaceStore.getState();
+      store.openFile("/repo/a", "a.ts");
+      store.openFile("/repo/a", "b.ts");
+      store.openFile("/repo/a", "c.ts");
+      store.moveTab("/repo/a", 0, 2);
+      expect(useWorkspaceStore.getState().byCwd["/repo/a"]?.openTabs).toEqual([
+        { kind: "file", relativePath: "b.ts" },
+        { kind: "file", relativePath: "c.ts" },
+        { kind: "file", relativePath: "a.ts" },
+      ]);
+    });
+
+    it("is a no-op when fromIndex is out of bounds", () => {
+      const store = useWorkspaceStore.getState();
+      store.openFile("/repo/a", "a.ts");
+      store.moveTab("/repo/a", 5, 0);
+      expect(useWorkspaceStore.getState().byCwd["/repo/a"]?.openTabs).toEqual([
+        { kind: "file", relativePath: "a.ts" },
+      ]);
+    });
+  });
+
   describe("toggleDirectory", () => {
     it("toggles expansion state for a directory", () => {
       const { toggleDirectory } = useWorkspaceStore.getState();

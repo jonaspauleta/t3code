@@ -1,3 +1,12 @@
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
 
@@ -7,7 +16,7 @@ import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceSto
 
 import { FilesTreeTab } from "./FilesTreeTab";
 import { FileTab } from "./FileTab";
-import { WorkspacePanelTabs } from "./WorkspacePanelTabs";
+import { WorkspacePanelTabs, tabKey } from "./WorkspacePanelTabs";
 
 // DiffPanel is a default export (matches the existing route file's lazy import).
 const LazyDiffPanel = lazy(() => import("../DiffPanel"));
@@ -48,6 +57,7 @@ export function WorkspacePanel({
 }: WorkspacePanelProps) {
   const openTabs = useWorkspaceStore((state) => state.byCwd[cwd]?.openTabs ?? EMPTY_OPEN_TABS);
   const closeTab = useWorkspaceStore((state) => state.closeTab);
+  const moveTab = useWorkspaceStore((state) => state.moveTab);
 
   // Stable-key selector for the dirty-paths set — see
   // commit dbc7d597 for the original L1 infinite-loop fix. We select a
@@ -109,15 +119,44 @@ export function WorkspacePanel({
     return () => window.removeEventListener("keydown", handler);
   }, [activeTab, handleClose]);
 
+  // ---- dnd-kit: Tab drag-to-reorder ----
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      // Only file tabs are sortable. openTabs contains ONLY file tabs
+      // (system tabs are prepended in fullTabs but live outside openTabs).
+      const fileTabs = openTabs.filter((t) => t.kind === "file");
+      const fromIndex = fileTabs.findIndex((t) => tabKey(t) === active.id);
+      const toIndex = fileTabs.findIndex((t) => tabKey(t) === over.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+
+      moveTab(cwd, fromIndex, toIndex);
+    },
+    [cwd, moveTab, openTabs],
+  );
+
   return (
     <div className={cn("flex h-full min-h-0 w-full flex-col bg-background")}>
-      <WorkspacePanelTabs
-        tabs={fullTabs}
-        activeTab={activeTab}
-        dirtyPaths={dirtyPaths}
-        onSelect={onSelectTab}
-        onClose={handleClose}
-      />
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis]}
+        onDragEnd={handleDragEnd}
+      >
+        <WorkspacePanelTabs
+          tabs={fullTabs}
+          activeTab={activeTab}
+          dirtyPaths={dirtyPaths}
+          onSelect={onSelectTab}
+          onClose={handleClose}
+        />
+      </DndContext>
       <div className="min-h-0 flex-1">
         {activeTab.kind === "changes" ? (
           <Suspense
