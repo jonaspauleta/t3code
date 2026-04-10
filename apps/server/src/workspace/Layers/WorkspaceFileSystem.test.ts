@@ -261,6 +261,254 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
     );
   });
 
+  describe("createFile", () => {
+    it.effect("creates a file relative to the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const result = yield* workspaceFileSystem.createFile({
+          cwd,
+          relativePath: "src/hello.ts",
+          contents: "export const hello = true;\n",
+        });
+        const saved = yield* fileSystem
+          .readFileString(path.join(cwd, "src/hello.ts"))
+          .pipe(Effect.orDie);
+
+        expect(result).toEqual({ relativePath: "src/hello.ts" });
+        expect(saved).toBe("export const hello = true;\n");
+      }),
+    );
+
+    it.effect("fails when file exists and overwrite is false", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "existing.ts", "original");
+
+        const error = yield* workspaceFileSystem
+          .createFile({
+            cwd,
+            relativePath: "existing.ts",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain("File already exists");
+      }),
+    );
+
+    it.effect("overwrites when overwrite is true", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "existing.ts", "original");
+
+        yield* workspaceFileSystem.createFile({
+          cwd,
+          relativePath: "existing.ts",
+          contents: "overwritten",
+          overwrite: true,
+        });
+
+        const saved = yield* fileSystem
+          .readFileString(path.join(cwd, "existing.ts"))
+          .pipe(Effect.orDie);
+        expect(saved).toBe("overwritten");
+      }),
+    );
+
+    it.effect("rejects path escape", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .createFile({
+            cwd,
+            relativePath: "../escape.ts",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape.ts",
+        );
+      }),
+    );
+  });
+
+  describe("createDirectory", () => {
+    it.effect("creates a directory relative to the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const result = yield* workspaceFileSystem.createDirectory({
+          cwd,
+          relativePath: "src/lib/utils",
+        });
+
+        const stat = yield* fileSystem.stat(path.join(cwd, "src/lib/utils")).pipe(Effect.orDie);
+
+        expect(result).toEqual({ relativePath: "src/lib/utils" });
+        expect(stat.type).toBe("Directory");
+      }),
+    );
+
+    it.effect("rejects path escape", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .createDirectory({
+            cwd,
+            relativePath: "../escape-dir",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape-dir",
+        );
+      }),
+    );
+  });
+
+  describe("renameEntry", () => {
+    it.effect("renames a file within the workspace", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "old-name.ts", "content");
+
+        const result = yield* workspaceFileSystem.renameEntry({
+          cwd,
+          relativePath: "old-name.ts",
+          nextRelativePath: "new-name.ts",
+        });
+
+        expect(result).toEqual({
+          previousRelativePath: "old-name.ts",
+          relativePath: "new-name.ts",
+        });
+
+        const exists = yield* fileSystem.exists(path.join(cwd, "new-name.ts")).pipe(Effect.orDie);
+        expect(exists).toBe(true);
+
+        const oldExists = yield* fileSystem
+          .exists(path.join(cwd, "old-name.ts"))
+          .pipe(Effect.orDie);
+        expect(oldExists).toBe(false);
+      }),
+    );
+
+    it.effect("rejects path escape on source", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .renameEntry({
+            cwd,
+            relativePath: "../escape.ts",
+            nextRelativePath: "safe.ts",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape.ts",
+        );
+      }),
+    );
+
+    it.effect("rejects path escape on destination", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "safe.ts", "content");
+
+        const error = yield* workspaceFileSystem
+          .renameEntry({
+            cwd,
+            relativePath: "safe.ts",
+            nextRelativePath: "../escape.ts",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape.ts",
+        );
+      }),
+    );
+  });
+
+  describe("deleteEntry", () => {
+    it.effect("deletes a file", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "to-delete.ts", "content");
+
+        const result = yield* workspaceFileSystem.deleteEntry({
+          cwd,
+          relativePath: "to-delete.ts",
+        });
+
+        expect(result).toEqual({ relativePath: "to-delete.ts" });
+        const exists = yield* fileSystem
+          .exists(path.join(cwd, "to-delete.ts"))
+          .pipe(Effect.orDie);
+        expect(exists).toBe(false);
+      }),
+    );
+
+    it.effect("deletes a non-empty directory with recursive flag", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "dir/nested/file.ts", "content");
+
+        const result = yield* workspaceFileSystem.deleteEntry({
+          cwd,
+          relativePath: "dir",
+          recursive: true,
+        });
+
+        expect(result).toEqual({ relativePath: "dir" });
+        const exists = yield* fileSystem.exists(path.join(cwd, "dir")).pipe(Effect.orDie);
+        expect(exists).toBe(false);
+      }),
+    );
+
+    it.effect("rejects path escape", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .deleteEntry({
+            cwd,
+            relativePath: "../escape.ts",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape.ts",
+        );
+      }),
+    );
+  });
+
   describe("subscribeFile", () => {
     it.effect("emits a snapshot event immediately on subscribe", () =>
       Effect.gen(function* () {
