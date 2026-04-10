@@ -8,12 +8,13 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
 import { cn } from "~/lib/utils";
 import { useWorkspaceStore, type WorkspaceTabId } from "~/workspace/workspaceStore";
 
+import { CommandPalette } from "./CommandPalette";
 import { FilesTreeTab } from "./FilesTreeTab";
 import { FileTab } from "./FileTab";
 import { WorkspacePanelTabs, tabKey } from "./WorkspacePanelTabs";
@@ -58,6 +59,10 @@ export function WorkspacePanel({
   const openTabs = useWorkspaceStore((state) => state.byCwd[cwd]?.openTabs ?? EMPTY_OPEN_TABS);
   const closeTab = useWorkspaceStore((state) => state.closeTab);
   const moveTab = useWorkspaceStore((state) => state.moveTab);
+  const openFile = useWorkspaceStore((state) => state.openFile);
+
+  // ---- Cmd+P command palette ----
+  const [showPalette, setShowPalette] = useState(false);
 
   // Stable-key selector for the dirty-paths set — see
   // commit dbc7d597 for the original L1 infinite-loop fix. We select a
@@ -119,6 +124,31 @@ export function WorkspacePanel({
     return () => window.removeEventListener("keydown", handler);
   }, [activeTab, handleClose]);
 
+  // Cmd+P / Ctrl+P opens the command palette for fuzzy file search.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const isPalette =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p" && !event.shiftKey;
+      if (!isPalette) return;
+      event.preventDefault();
+      setShowPalette((prev) => !prev);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handlePaletteSelectFile = useCallback(
+    (relativePath: string) => {
+      openFile(cwd, relativePath);
+      onSelectTab({ kind: "file", relativePath });
+    },
+    [cwd, openFile, onSelectTab],
+  );
+
+  const handlePaletteClose = useCallback(() => {
+    setShowPalette(false);
+  }, []);
+
   // ---- dnd-kit: Tab drag-to-reorder ----
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -177,6 +207,16 @@ export function WorkspacePanel({
           <FileTab environmentId={environmentId} cwd={cwd} relativePath={activeTab.relativePath} />
         )}
       </div>
+
+      {showPalette && (
+        <CommandPalette
+          environmentId={environmentId}
+          cwd={cwd}
+          openTabs={openTabs}
+          onSelectFile={handlePaletteSelectFile}
+          onClose={handlePaletteClose}
+        />
+      )}
     </div>
   );
 }
